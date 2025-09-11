@@ -20,7 +20,7 @@
     "https://www.virustotal.com/*"
   ],
   "background": {
-    "scripts": ["background.js", "urlCheck.js", "report.js"]
+    "scripts": ["report.js", "urlCheck.js", "background.js"]
   },
   "message_display_action": {
     "default_title": "Check & Report",
