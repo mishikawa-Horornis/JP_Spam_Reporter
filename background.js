@@ -43,13 +43,11 @@ async function handleCheckAndMaybeReport(tab) {
     for (const it of items) {
       try {
         const r = await vtCheckUrl(vtKey, it.url);
-
         results.push({ ...it, verdict: r.verdict, details: r.details });
       } catch (e) {
         results.push({ ...it, verdict: "error", details: String(e) });
       }
     }
-
 
     const bad = results.filter(r => r.verdict === "malicious" || r.verdict === "suspicious");
     await showResultPanel(results);
@@ -85,7 +83,7 @@ function extractFromHtml(html) {
   const out = [];
   try {
     const doc = new DOMParser().parseFromString(html, "text/html");
-
+    
     const links = [...doc.querySelectorAll("a[href], area[href]")];
     for (const a of links) {
       const href = a.getAttribute("href") || "";
@@ -93,7 +91,7 @@ function extractFromHtml(html) {
       const text = (a.textContent || "").trim().slice(0, 200);
       out.push({ url: href, anchorText: text, source: "html" });
     }
-
+    
     const text = doc.body?.innerText || "";
     out.push(...extractFromPlain(text).map(u => ({ url: u, anchorText: "", source: "html-text" })));
   } catch {}
@@ -121,7 +119,7 @@ function extractUrlsFromFull(full) {
   const list = [];
   for (const h of htmls) list.push(...extractFromHtml(h));
   for (const t of texts) list.push(...extractFromPlain(t).map(u => ({ url: u, anchorText: "", source: "plain" })));
- 
+
   const uniq = new Map();
   for (const it of list) if (!uniq.has(it.url)) uniq.set(it.url, it);
   return Array.from(uniq.values());
