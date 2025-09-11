@@ -7,9 +7,8 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
 browser.menus.create({
   id: "jp-spam-check",
   title: "このメールをチェック＆報告下書き",
-  contexts: ["message_display", "message_list"]
-});
-
+  // メッセージ表示画面のアクションメニュー＆メッセージ一覧の右クリックに出す
+  contexts: ["message_display_action_menu", "message_list", "tools_menu"]});
 browser.menus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "jp-spam-check") {
     await handleCheckAndMaybeReport(tab);
