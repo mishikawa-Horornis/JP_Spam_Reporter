@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>JP Mail Check Extension – 設定</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:720px;margin:24px auto;line-height:1.6}
+      label{display:block;margin:12px 0 4px}
+      input[type=text]{width:100%;padding:8px}
+      .row{display:flex;gap:12px}
+      .row > div{flex:1}
+      .actions{margin-top:16px}
+    </style>
+  </head>
+  <body>
+    <h1>JP Mail Check Extension – 設定</h1>
+
+    <label>VirusTotal API Key</label>
+    <input id="vtApiKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+
+    <div class="row">
+      <div>
+        <label>報告先（フィッシング対策協議会）</label>
+        <input id="toAntiPhishing" type="text" value="info@antiphishing.jp" />
+      </div>
+      <div>
+        <label>報告先（迷惑メール相談センター）</label>
+        <input id="toDekyo" type="text" value="report@dekyo.or.jp" />
+      </div>
+    </div>
+
+    <label><input id="attachEml" type="checkbox" checked /> 元メール(.eml)を添付する（推奨）</label>
+
+    <div class="actions">
+      <button id="save">保存</button>
+      <span id="status" style="margin-left:8px"></span>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

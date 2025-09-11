@@ -27,5 +27,6 @@
   "message_display_action": {
     "default_title": "Check & Report",
     "default_popup": ""
-  }
+  },
+  "options_ui": { "page": "options.html", "open_in_tab": true }
 }
