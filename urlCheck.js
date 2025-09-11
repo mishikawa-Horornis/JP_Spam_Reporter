@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // どこからでも呼べるように globalThis に公開
 globalThis.vtCheckUrl = async function (apiKey, url) {
+
   const analyze = await fetch("https://www.virustotal.com/api/v3/urls", {
     method: "POST",
     headers: {
@@ -11,8 +12,9 @@ globalThis.vtCheckUrl = async function (apiKey, url) {
   });
   if (!analyze.ok) throw new Error("VT analyze failed: " + analyze.status);
   const data = await analyze.json();
-  const id = data.data.id;
+  const id = data.data.id; // analysis id
 
+  // 2) 結果取得（数回ポーリング）
   let verdict = "unknown";
   let details = {};
   for (let i = 0; i < 6; i++) {
@@ -35,4 +37,4 @@ globalThis.vtCheckUrl = async function (apiKey, url) {
     }
   }
   return { verdict, details };
-};
+}
