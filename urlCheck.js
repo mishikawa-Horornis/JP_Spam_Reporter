@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-async function vtCheckUrl(apiKey, url) {
-  // 1) URL を解析キューへ投入
+// どこからでも呼べるように globalThis に公開
+globalThis.vtCheckUrl = async function (apiKey, url) {
+
   const analyze = await fetch("https://www.virustotal.com/api/v3/urls", {
     method: "POST",
     headers: {
