@@ -7,18 +7,26 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
 browser.menus.create({
   id: "jp-spam-check",
   title: "このメールをチェック＆報告下書き",
-  contexts: ["message_display", "message_list"]
+  contexts: ["message_display_action_menu", "message_list", "tools_menu"]
 });
 
 browser.menus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === "jp-spam-check") {
+ if (info.menuItemId !== "jp-spam-check") return;
+ // 一覧（message_list）から来た場合は選択メッセージを処理
+ if (info.selectedMessages && info.selectedMessages.messages?.length) {
+    for (const m of info.selectedMessages.messages) {
+      await handleCheckAndMaybeReport({ id: tab?.id, _messageId: m.id });
+    }
+  } else {
     await handleCheckAndMaybeReport(tab);
   }
 });
 
 async function handleCheckAndMaybeReport(tab) {
   try {
-    const msg = await browser.messageDisplay.getDisplayedMessage(tab.id);
+    const msg = tab?._messageId
+      ? await browser.messages.get(tab._messageId)
+      : await browser.messageDisplay.getDisplayedMessage(tab.id);
     if (!msg) {
       return notify("メッセージが取得できませんでした。");
     }
