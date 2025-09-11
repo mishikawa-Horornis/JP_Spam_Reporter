@@ -2,46 +2,27 @@ name: Build & Release XPI
 
 on:
   push:
-    tags:
-      - 'v*.*.*'  # v1.0.0 みたいなタグで実行
+    tags: ['v*']   # 例: v1.0.2 で発火
+
+permissions:
+  contents: write   # ← これが重要。GITHUB_TOKENに書き込み権限を付与
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Create XPI
-        run: |
-          mkdir -p dist
-          zip -r dist/JPMailCheckExtension.xpi . \
-            -x "dist/*" \
-               ".git/*" \
-               ".github/*" \
-               "**/.DS_Store" \
-               "README.md" \
-               "LICENSE" \
-               "*.yml"
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: JPMailCheckExtension.xpi
-          path: dist/JPMailCheckExtension.xpi
+      - uses: actions/checkout@v4
+      # …XPI作成…
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download Artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: JPMailCheckExtension.xpi
           path: dist
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           files: dist/JPMailCheckExtension.xpi
         env:
