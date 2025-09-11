@@ -17,7 +17,9 @@ browser.menus.onClicked.addListener(async (info, tab) => {
 
 async function handleCheckAndMaybeReport(tab) {
   try {
-    const msg = await browser.messageDisplay.getDisplayedMessage(tab.id);
+    const msg = tab?._messageId
+      ? await browser.messages.get(tab._messageId)
+      : await browser.messageDisplay.getDisplayedMessage(tab.id);
     if (!msg) {
       return notify("メッセージが取得できませんでした。");
     }
