@@ -16,9 +16,7 @@
     "menus",
     "downloads",
     "storage",
-    "notifications"
-  ],
-  "host_permissions": [
+    "notifications",
     "https://www.virustotal.com/*"
   ],
   "background": {
