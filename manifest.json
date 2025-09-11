@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "JP Spam Reporter",
+  "version": "0.1.0",
+  "applications": {
+    "gecko": {
+      "id": "jp-spam-reporter@example.local",
+      "strict_min_version": "102.0"
+    }
+  },
+  "description": "Check URLs in a message and prepare a report email with .eml attachment for Japanese abuse desks.",
+  "permissions": [
+    "messagesRead",
+    "accountsRead",
+    "compose",
+    "menus",
+    "downloads",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.virustotal.com/*"
+  ],
+  "background": {
+    "scripts": ["background.js", "urlCheck.js", "report.js"]
+  },
+  "message_display_action": {
+    "default_title": "Check & Report",
+    "default_popup": ""
+  }
+}
