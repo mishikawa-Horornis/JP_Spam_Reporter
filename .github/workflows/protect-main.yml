@@ -1,0 +1,40 @@
+name: Protect main branch
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]  # ついでに main 更新時も再適用
+
+permissions:
+  contents: read
+  administration: write   # ブランチ保護のAPIに必要
+
+jobs:
+  protect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply branch protection to main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          BRANCH: main
+        run: |
+          gh api \
+            --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$OWNER/$REPO/branches/$BRANCH/protection" \
+            -f required_status_checks='{"strict":false,"contexts":[]}' \
+            -f enforce_admins=true \
+            -f required_pull_request_reviews='{
+              "required_approving_review_count": 1,
+              "dismiss_stale_reviews": true,
+              "require_code_owner_reviews": false
+            }' \
+            -f restrictions='null' \
+            -f allow_force_pushes=false \
+            -f allow_deletions=false \
+            -f block_creations=true \
+            -f required_linear_history=true \
+            -f lock_branch=false \
+            -f allow_fork_syncing=false
