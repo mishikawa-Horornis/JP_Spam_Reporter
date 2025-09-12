@@ -139,3 +139,17 @@ function flagIndicators(items) {
     return { ...it, domain: dom, mismatch, shortener };
   });
 }
+async function showResultPanel(results) {
+  // 判定結果の集計
+  const counts = results.reduce((acc, r) => {
+    acc[r.verdict] = (acc[r.verdict] || 0) + 1;
+    return acc;
+  }, {});
+
+  // まとめて通知
+  const summary = Object.entries(counts)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join(", ");
+
+  await notify(`判定: ${summary}`);
+}
