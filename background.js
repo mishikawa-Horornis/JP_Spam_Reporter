@@ -23,8 +23,16 @@ browser.menus.onClicked.addListener(async (info, tab) => {
   }
 });
 
+// 連打ガード用フラグ
+let runningScan = false;
+
 async function handleCheckAndMaybeReport(tab) {
   try {
+    if (runningScan) {
+      await notify("すでにスキャン中です…");
+      return;
+    }
+    runningScan = true;
     const msg = tab?._messageId
       ? await browser.messages.get(tab._messageId)
       : await browser.messageDisplay.getDisplayedMessage(tab.id);
@@ -46,6 +54,10 @@ async function handleCheckAndMaybeReport(tab) {
     const vtKey = await getVTKey();
     const { gsbApiKey = "", ptAppKey = "" } = await browser.storage.local.get(["gsbApiKey","ptAppKey"]);
     if (!vtKey) return notify("VirusTotal APIキーを設定してください（アドオン設定）。");
+
+    // 進捗通知を作成
+    const total = items.length;
+    const prog = await createProgress(`スキャン中… (0/${total})`, 0, total);
 
     const results = [];
     // 先に GSB をまとめて照会（高速）
@@ -79,10 +91,12 @@ async function handleCheckAndMaybeReport(tab) {
       } catch (e) {
         results.push({ ...it, url: it.finalUrl, verdict: "error", details: String(e) });
       }
+      // 進捗更新
+      await updateProgress(prog, `スキャン中… (${i + 1}/${total})`, i + 1, total);
     }
 
     const bad = results.filter(r => r.verdict === "malicious" || r.verdict === "suspicious");
-    await showResultPanel(results);
+    await showResultPanel(results); // サマリ通知
 
     if (bad.length > 0) {
       await createReportDraft(msg, raw, results, { auth });
@@ -93,9 +107,53 @@ async function handleCheckAndMaybeReport(tab) {
   } catch (e) {
     console.error(e);
     notify("処理中にエラー：" + e.message);
+  } finally {
+    runningScan = false;
   }
 }
+// 進捗通知（Thunderbirdは`progress`タイプが使えない環境もあるので文字更新でフォールバック）
+async function createProgress(title, value, max) {
+  const id = `jp-scan-${Date.now()}`;
+  try {
+    // progressタイプが通る環境ならこちら（通らない場合は例外→下のbasicに）
+    await browser.notifications.create(id, {
+      type: "progress",
+      iconUrl: "icons/icon-48.png",
+      title: "JP Spam Reporter",
+      message: title,
+      progress: Math.floor((value / Math.max(1, max)) * 100),
+    });
+  } catch {
+    await browser.notifications.create(id, {
+      type: "basic",
+      iconUrl: "icons/icon-48.png",
+      title: "JP Spam Reporter",
+      message: title,
+    });
+  }
+  return id;
+}
 
+async function updateProgress(id, title, value, max) {
+  const pct = Math.floor((value / Math.max(1, max)) * 100);
+  try {
+    await browser.notifications.update(id, {
+      type: "progress",
+      iconUrl: "icons/icon-48.png",
+      title: "JP Spam Reporter",
+      message: title,
+      progress: pct,
+    });
+  } catch {
+    await browser.notifications.update(id, {
+      type: "basic",
+      iconUrl: "icons/icon-48.png",
+      title: "JP Spam Reporter",
+      message: title,
+    });
+  }
+
+}
 function notify(text) {
   return browser.notifications.create({
     type: "basic",
