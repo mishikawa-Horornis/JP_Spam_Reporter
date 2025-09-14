@@ -21,6 +21,8 @@
     await browser.storage.local.set({
       vtApiKey: $("vtApiKey").value.trim(),
       gsbApiKey: $("gsbApiKey").value.trim(),
+      ptAppKey: $("ptAppKey").value.trim(),
+      toAntiPhishing: $("toAntiPhishing").value.trim(),
       toDekyo: $("toDekyo").value.trim(),
       attachEml: $("attachEml").checked,
     });
