@@ -36,7 +36,7 @@ globalThis.createReportDraft = async function (originalMsg, rawEml, results) {
     params.isPlainText = true;
     params.plainTextBody = bodies.text;  // ← プレーン時は plainTextBody 必須
   } else {
-    params.body = bodies.html;           // ← HTML時は body を使う
+    params.body = bodies.html;
   }
   const tab = await browser.compose.beginNew(params);
 
