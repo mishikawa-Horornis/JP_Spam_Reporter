@@ -1,21 +1,24 @@
-(async function(){
+(async function () {
   const $ = (id) => document.getElementById(id);
+  // Chrome/Firefox 両対応
+  const storage = (typeof chrome !== "undefined" ? chrome.storage : browser.storage);
 
-  // ページロード時にストレージから値を取得してフォームに反映
-  const saved = await browser.storage.local.get([
+  // 1) 既存値の読込
+  const saved = await storage.local.get([
     "vtApiKey", "gsbApiKey", "ptAppKey", "toAntiPhishing", "toDekyo", "attachEml"
   ]);
 
-  $("vtApiKey").value = saved.vtApiKey || "";
-  $("gsbApiKey").value = saved.gsbApiKey || "";
-  $("ptAppKey").value = saved.ptAppKey || "";
-  $("toAntiPhishing").value = saved.toAntiPhishing || "info@antiphishing.jp";
-  $("toDekyo").value = saved.toDekyo || "report@dekyo.or.jp";
-  $("attachEml").checked = saved.attachEml ?? true;
+  // 2) UIへ反映（未設定はデフォルト）
+  $("vtApiKey").value       = saved.vtApiKey ?? "";
+  $("gsbApiKey").value      = saved.gsbApiKey ?? "";
+  $("ptAppKey").value       = saved.ptAppKey ?? "";
+  $("toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
+  $("toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp"; // ←修正ポイント
+  $("attachEml").checked    = saved.attachEml ?? true;
 
-  // 保存ボタン押下時に値を保存
+  // 3) 保存
   $("save").addEventListener("click", async () => {
-    await browser.storage.local.set({
+    await storage.local.set({
       vtApiKey: $("vtApiKey").value.trim(),
       gsbApiKey: $("gsbApiKey").value.trim(),
       ptAppKey: $("ptAppKey").value.trim(),
@@ -24,6 +27,6 @@
       attachEml: $("attachEml").checked,
     });
     $("status").textContent = "保存しました";
-    setTimeout(()=> $("status").textContent = "", 1800);
+    setTimeout(() => $("status").textContent = "", 1800);
   });
 })();
