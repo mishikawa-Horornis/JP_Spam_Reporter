@@ -17,7 +17,10 @@
     "downloads",
     "storage",
     "notifications",
-    "https://www.virustotal.com/*"
+    "https://www.virustotal.com/*",
+    "https://safebrowsing.googleapis.com/*",
+    "https://checkurl.phishtank.com/*",
+    "http://*/*","https://*/*"
   ],
   "background": {
     "scripts": ["report.js", "urlCheck.js", "background.js"]
