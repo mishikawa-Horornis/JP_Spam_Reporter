@@ -39,12 +39,20 @@ async function handleCheckAndMaybeReport(tab) {
     if (!msg) return notify("メッセージが取得できませんでした。");
 
     const full = await browser.messages.getFull(msg.id);
+    const auth = parseAuthResults(full);   // { spf, dkim, dmarc }
     const raw  = await browser.messages.getRaw(msg.id);
 
-    const items = extractUrlsFromFull(full); // [{url, anchorText, source}, ...]
+    const items0 = extractUrlsFromFull(full); // [{url, ...}]
+    // 短縮URL展開
+    const items = [];
+    for (const it of items0) {
+      const finalUrl = await expandUrl(it.url);
+      items.push({ ...it, finalUrl });
+    }
     if (items.length === 0) return notify("URLは見つかりませんでした。");
 
     const vtKey = await getVTKey();
+    const { gsbApiKey = "", ptAppKey = "" } = await browser.storage.local.get(["gsbApiKey","ptAppKey"]);
     if (!vtKey) return notify("VirusTotal APIキーを設定してください（アドオン設定）。");
 
     // 進捗通知を作成
@@ -52,13 +60,36 @@ async function handleCheckAndMaybeReport(tab) {
     const prog = await createProgress(`スキャン中… (0/${total})`, 0, total);
 
     const results = [];
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
+    // 先に GSB をまとめて照会（高速）
+    const gsbMap = await gsbCheckBatch(items.map(x => x.finalUrl), gsbApiKey);
+
+    for (const it of items) {
       try {
-        const r = await vtCheckUrl(vtKey, it.url);
-        results.push({ ...it, verdict: r.verdict, details: r.details });
+        const r = await vtCheckUrl(vtKey, it.finalUrl);
+        let verdict = r.verdict;
+
+        // Google Safe Browsing
+        const gsb = gsbMap[it.finalUrl] || "unknown";
+        if (gsb === "listed" && verdict === "harmless") verdict = "suspicious";
+
+        // PhishTank（任意）
+        const pt = await phishTankCheck(it.finalUrl, ptAppKey);
+        if (pt === "listed" && verdict !== "malicious") verdict = "suspicious";
+
+        // ドメイン年齢（若すぎるなら注意）
+        const ageDays = vtKey ? await domainAgeDaysViaVT(getDomain(it.finalUrl), vtKey) : null;
+        const young = (ageDays !== null && ageDays <= 30);
+        if (young && verdict === "harmless") verdict = "suspicious";
+
+        results.push({
+          ...it,
+          url: it.finalUrl,
+          verdict,
+          signals: { gsb, phishtank: pt, domainAgeDays: ageDays },
+          details: r.details
+        });
       } catch (e) {
-        results.push({ ...it, verdict: "error", details: String(e) });
+        results.push({ ...it, url: it.finalUrl, verdict: "error", details: String(e) });
       }
       // 進捗更新
       await updateProgress(prog, `スキャン中… (${i + 1}/${total})`, i + 1, total);
@@ -68,7 +99,7 @@ async function handleCheckAndMaybeReport(tab) {
     await showResultPanel(results); // サマリ通知
 
     if (bad.length > 0) {
-      await createReportDraft(msg, raw, results);
+      await createReportDraft(msg, raw, results, { auth });
       notify("危険判定あり：報告メールの下書きを作成しました。");
     } else {
       notify("危険判定は見つかりませんでした。");
