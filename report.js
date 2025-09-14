@@ -41,15 +41,30 @@ globalThis.createReportDraft = async function (originalMsg, rawEml, results) {
   const tab = await browser.compose.beginNew(params);
 
   if (attachEml && rawEml) {
-    const emlBlob = new Blob([rawEml], { type: "message/rfc822" });
-    const url = URL.createObjectURL(emlBlob);
-    await browser.compose.addAttachment(tab.id, {
-      file: url,
-      name: (originalMsg.subject || "message") + ".eml",
-    });
-  }
-};
+    try {
+      // 1) compose画面の初期化が終わるのを少し待つ（環境により必要）
+      await new Promise(r => setTimeout(r, 150));
 
+      // 2) ArrayBuffer/Uint8Array を File にする（ThunderbirdはFileが安定）
+      const bytes = rawEml instanceof ArrayBuffer ? rawEml
+                 : ArrayBuffer.isView(rawEml)      ? rawEml.buffer
+                 : new TextEncoder().encode(String(rawEml)).buffer;
+
+      const filename = (originalMsg.subject || "message") + ".eml";
+      const emlFile = new File([bytes], filename, { type: "message/rfc822" });
+
+      // 3) 添付
+      await browser.compose.addAttachment(tab.id, { file: emlFile });
+    } catch (e) {
+      console.error("attach .eml failed:", e);
+      await browser.notifications.create({
+        type: "basic",
+        title: "JP Spam Reporter",
+        message: "注意：.eml の添付に失敗しました（手動で添付してください）。"
+      });
+    }
+  };
+}
 function buildBodies(msg, verdicts) {
   const lines = [];
   lines.push("以下、拡張機能による自動生成の報告下書きです。");
