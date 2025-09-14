@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "JP Spam Reporter",
-  "version": "0.1.0",
+  "version": "1.0.15",
   "applications": {
     "gecko": {
       "id": "jp-spam-reporter@example.local",
@@ -23,7 +23,7 @@
     "http://*/*","https://*/*"
   ],
   "background": {
-    "scripts": ["report.js", "urlCheck.js", "background.js"]
+    "scripts": ["utils/auth.js", "background.js"]
   },
   "message_display_action": {
     "default_title": "Check & Report",

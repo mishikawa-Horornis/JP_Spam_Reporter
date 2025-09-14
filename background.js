@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: MIT
+// background.js （auth 取得箇所）
+const full = await browser.messages.getFull(msg.id);
+const auth = (typeof parseAuthResults === "function")
+  ? parseAuthResults(full)
+  : { spf: "unknown", dkim: "unknown", dmarc: "unknown" };
+
 
 // 右上ボタン
 browser.messageDisplayAction.onClicked.addListener(async (tab) => {
@@ -63,8 +69,10 @@ async function handleCheckAndMaybeReport(tab) {
     // 先に GSB をまとめて照会（高速）
     const gsbMap = await gsbCheckBatch(items.map(x => x.finalUrl), gsbApiKey);
 
-    for (const it of items) {
-      try {
+     // こう直す（index を使う）
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+       try {
         const r = await vtCheckUrl(vtKey, it.finalUrl);
         let verdict = r.verdict;
 
@@ -91,7 +99,7 @@ async function handleCheckAndMaybeReport(tab) {
       } catch (e) {
         results.push({ ...it, url: it.finalUrl, verdict: "error", details: String(e) });
       }
-      // 進捗更新
+
       await updateProgress(prog, `スキャン中… (${i + 1}/${total})`, i + 1, total);
     }
 
@@ -154,6 +162,7 @@ async function updateProgress(id, title, value, max) {
   }
 
 }
+
 function notify(text) {
   return browser.notifications.create({
     type: "basic",
