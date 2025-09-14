@@ -20,7 +20,7 @@
   $("save").addEventListener("click", async () => {
     await browser.storage.local.set({
       vtApiKey: $("vtApiKey").value.trim(),
-      toAntiPhishing: $("toAntiPhishing").value.trim(),
+      gsbApiKey: $("gsbApiKey").value.trim(),
       toDekyo: $("toDekyo").value.trim(),
       attachEml: $("attachEml").checked,
     });
