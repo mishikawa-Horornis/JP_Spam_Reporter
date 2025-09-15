@@ -23,7 +23,11 @@
     "http://*/*","https://*/*"
   ],
   "background": {
-    "scripts": ["utils/auth.js", "utils/url.js", "background.js"]
+    "scripts": [
+      "utils/auth.js",
+      "utils/url.js",
+      "background.js"
+    ]
   },
   "message_display_action": {
     "default_title": "Check & Report",
