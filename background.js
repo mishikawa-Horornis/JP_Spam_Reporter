@@ -90,7 +90,6 @@ for (let i = 0; i < items.length; i++) {
   if (ageDays !== null && ageDays <= 30 && verdict === "harmless") verdict = "suspicious";
   return { vtApiKey, gsbApiKey, ptAppKey };
 }
-
 // ------- メニュー・ボタンのリスナー ------- //
 browser.messageDisplayAction.onClicked.addListener((tab) => {
   handleCheckAndMaybeReport(tab).catch(console.error);  // <- top-level await を避ける
