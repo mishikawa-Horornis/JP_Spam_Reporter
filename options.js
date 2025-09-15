@@ -1,14 +1,13 @@
-// options.js 置き換え
 (async function () {
   const $ = (id) => document.getElementById(id);
 
-  // ✅ storage を Promise ベースで統一
+  // Promiseベースに統一（Thunderbird で chrome がコールバック式でもOK）
   const storage = (typeof browser !== "undefined" && browser.storage)
     ? browser.storage
     : {
         local: {
           get: (keys) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.get(keys, (v) => resolve(v)); }
+            try { chrome.storage.local.get(keys, (v) => resolve(v || {})); }
             catch (e) { reject(e); }
           }),
           set: (obj) => new Promise((resolve, reject) => {
@@ -18,39 +17,41 @@
         },
       };
 
-  // 既存値の読込（未設定は初期値）
+  // 1) 読み込み（空文字はそのまま UI に反映）
   let saved = {};
   try {
     saved = await storage.local.get([
       "vtApiKey", "gsbApiKey", "ptAppKey", "toAntiPhishing", "toDekyo", "attachEml"
     ]);
   } catch (e) {
-    console.error("storage.get error:", e);
+    console.error("[options] storage.get error:", e);
     $("#status").textContent = "設定の読み込みに失敗しました";
   }
 
-  // フォームへ反映
+  
   $("#vtApiKey").value       = saved.vtApiKey ?? "";
   $("#gsbApiKey").value      = saved.gsbApiKey ?? "";
-  $("#ptAppKey").value       = saved.ptAppKey ?? "";
+  $("#ptAppKey").value       = saved.ptAppKey ?? "";               // ← 空でもOK
   $("#toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
   $("#toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp";
-  $("#attachEml").checked    = saved.attachEml ?? true;
+  $("#attachEml").checked    = (saved.attachEml ?? true);
 
-  // 保存
+  // 2) 保存（空文字もそのまま保存）
   $("#save").addEventListener("click", async () => {
+    const payload = {
+      vtApiKey: $("#vtApiKey").value.trim(),
+      gsbApiKey: $("#gsbApiKey").value.trim(),
+      ptAppKey:  $("#ptAppKey").value.trim(),            // ← "" を許容
+      toAntiPhishing: $("#toAntiPhishing").value.trim(),
+      toDekyo: $("#toDekyo").value.trim(),
+      attachEml: $("#attachEml").checked,
+    };
     try {
-      await storage.local.set({
-        vtApiKey: $("#vtApiKey").value.trim(),
-        gsbApiKey: $("#gsbApiKey").value.trim(),
-        ptAppKey: $("#ptAppKey").value.trim(),
-        toAntiPhishing: $("#toAntiPhishing").value.trim(),
-        toDekyo: $("#toDekyo").value.trim(),
-        attachEml: $("#attachEml").checked,
-      });
+      await storage.local.set(payload);
       $("#status").textContent = "保存しました";
+      console.log("[options] saved:", payload);
     } catch (e) {
-      console.error("storage.set error:", e);
+      console.error("[options] storage.set error:", e);
       $("#status").textContent = "保存に失敗しました";
     } finally {
       setTimeout(() => $("#status").textContent = "", 2000);
