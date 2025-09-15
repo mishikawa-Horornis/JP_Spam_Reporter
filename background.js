@@ -51,11 +51,118 @@ async function updateProgress(id, title, value, max) {
     });
   }
 }
-async function getVTKey() {
-  const { vtApiKey } = await browser.storage.local.get("vtApiKey");
-  return vtApiKey || "";
+// --- 1) キー取得：並列で読み込む ---
+async function loadKeys() {
+  const [{ vtApiKey = "" }, { gsbApiKey = "" }, { ptAppKey = "" }] = await Promise.all([
+    browser.storage.local.get("vtApiKey"),
+    browser.storage.local.get("gsbApiKey"),
+    browser.storage.local.get("ptAppKey"),
+  ]);
+  return { vtApiKey, gsbApiKey, ptAppKey };
 }
 
+// --- 2) 本体：キーの有無で分岐。1つでもあればスキャン継続 ---
+async function handleCheckAndMaybeReport(tab) {
+  try {
+    if (runningScan) { await notify("すでにスキャン中です…"); return; }
+    runningScan = true;
+
+    const msg = tab?._messageId
+      ? await browser.messages.get(tab._messageId)
+      : await browser.messageDisplay.getDisplayedMessage(tab.id);
+    if (!msg) return notify("メッセージが取得できませんでした。");
+
+    const full = await browser.messages.getFull(msg.id);
+    
+    const auth = (typeof parseAuthResults === "function")
+      ? parseAuthResults(full)
+      : { spf: "unknown", dkim: "unknown", dmarc: "unknown" };
+
+    const raw = await browser.messages.getRaw(msg.id);
+
+    const items0 = extractUrlsFromFull(full);
+    if (!items0.length) return notify("URLは見つかりませんでした。");
+
+    // 短縮URL展開
+    const items = [];
+    for (const it of items0) {
+      const finalUrl = await expandUrl(it.url);
+      items.push({ ...it, finalUrl });
+    }
+
+    // 🔑 キーをまとめて取得（並列）
+    const { vtApiKey, gsbApiKey, ptAppKey } = await loadKeys();
+    const caps = { vt: !!vtApiKey, gsb: !!gsbApiKey, pt: !!ptAppKey };
+
+    if (!caps.vt && !caps.gsb && !caps.pt) {
+      return notify("APIキーが未設定です（VT/GSB/PT のいずれかを設定してください）。");
+    }
+
+    const total = items.length;
+    const prog = await createProgress(`スキャン中… (0/${total})`, 0, total);
+
+    // GSB はキーがあれば先にまとめて照会、なければ空マップ
+    const gsbMap = caps.gsb ? await gsbCheckBatch(items.map(x => x.finalUrl), gsbApiKey) : {};
+
+    const results = [];
+    
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      try {
+        let verdict = "unknown";
+        let vtDetails = null;
+
+        // VT があれば VT 判定
+        if (caps.vt) {
+          const r = await vtCheckUrl(vtApiKey, it.finalUrl);
+          verdict = r.verdict;              // harmless/suspicious/malicious 等
+          vtDetails = r.details || null;
+        }
+
+        // GSB の結果で上書き/補強
+        const gsb = gsbMap[it.finalUrl] || "unknown";
+        if (gsb === "listed" && verdict === "harmless") verdict = "suspicious";
+
+        // PT はキー未設定でも内部フォールバック（Simple API）で動く実装にしておくと楽
+        const pt = await phishTankCheck(it.finalUrl, ptAppKey || "");
+
+        if (pt === "listed" && verdict !== "malicious") verdict = "suspicious";
+
+        // ドメイン年齢は VT キーがある時のみ
+        const ageDays = caps.vt ? await domainAgeDaysViaVT(getDomain(it.finalUrl), vtApiKey) : null;
+        if (ageDays !== null && ageDays <= 30 && verdict === "harmless") verdict = "suspicious";
+
+        results.push({
+          ...it,
+          url: it.finalUrl,
+          verdict,
+          signals: { gsb, phishtank: pt, domainAgeDays: ageDays },
+          details: vtDetails
+        });
+      } catch (e) {
+        results.push({ ...it, url: it.finalUrl, verdict: "error", details: String(e) });
+      }
+
+      await updateProgress(prog, `スキャン中… (${i + 1}/${total})`, i + 1, total);
+    }
+
+    const counts = results.reduce((acc, r) => (acc[r.verdict] = (acc[r.verdict]||0)+1, acc), {});
+    await notify(`判定: ${Object.entries(counts).map(([k,v])=>`${k}: ${v}`).join(", ")}`);
+
+    const bad = results.filter(r => r.verdict === "malicious" || r.verdict === "suspicious");
+    if (bad.length) {
+      await createReportDraft(msg, raw, results, { auth });
+      await notify("危険判定あり：報告メールの下書きを作成しました。");
+    } else {
+      await notify("危険判定は見つかりませんでした。");
+    }
+  } catch (e) {
+    console.error(e);
+    await notify("処理中にエラー：" + e.message);
+  } finally {
+    runningScan = false;
+  }
+}
 // ------- メニュー・ボタンのリスナー ------- //
 browser.messageDisplayAction.onClicked.addListener((tab) => {
   handleCheckAndMaybeReport(tab).catch(console.error);  // <- top-level await を避ける
@@ -80,105 +187,6 @@ browser.menus.onClicked.addListener((info, tab) => {
     }
   })().catch(console.error);
 });
-
-// 連打ガード
-let runningScan = false;
-
-// ------- 本体処理 ------- //
-async function handleCheckAndMaybeReport(tab) {
-  try {
-    if (runningScan) { await notify("すでにスキャン中です…"); return; }
-    runningScan = true;
-
-    const msg = tab?._messageId
-      ? await browser.messages.get(tab._messageId)
-      : await browser.messageDisplay.getDisplayedMessage(tab.id);
-    if (!msg) return notify("メッセージが取得できませんでした。");
-
-    const full = await browser.messages.getFull(msg.id);
-    // utils/auth.js でグローバル公開されている前提。未定義でも落ちないようにガード
-    const auth = (typeof parseAuthResults === "function")
-      ? parseAuthResults(full)
-      : { spf: "unknown", dkim: "unknown", dmarc: "unknown" };
-
-    const raw  = await browser.messages.getRaw(msg.id);
-
-    // URL 抽出
-    const items0 = extractUrlsFromFull(full); // [{url, ...}]
-    if (!items0.length) return notify("URLは見つかりませんでした。");
-
-    // 短縮URL展開
-    const items = [];
-    for (const it of items0) {
-      const finalUrl = await expandUrl(it.url);
-      items.push({ ...it, finalUrl });
-    }
-    
-    const vtKey = await getVTKey();
-    const { gsbApiKey = "", ptAppKey = "" } = await browser.storage.local.get(["gsbApiKey","ptAppKey"]);
-    if (!vtKey) return notify("VirusTotal APIキーを設定してください（アドオン設定）。");
-
-    // 進捗通知
-    const total = items.length;
-    const prog = await createProgress(`スキャン中… (0/${total})`, 0, total);
-
-    const results = [];
-
-    // GSB をまとめて照会
-    const gsbMap = await gsbCheckBatch(items.map(x => x.finalUrl), gsbApiKey);
-
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      try {
-        const r = await vtCheckUrl(vtKey, it.finalUrl);
-        let verdict = r.verdict;
-
-        // Google Safe Browsing
-        const gsb = gsbMap[it.finalUrl] || "unknown";
-        if (gsb === "listed" && verdict === "harmless") verdict = "suspicious";
-
-        // PhishTank（任意。AppKey 空でも関数内でフォールバック実装にしておく）
-        const pt = await phishTankCheck(it.finalUrl, ptAppKey);
-
-        if (pt === "listed" && verdict !== "malicious") verdict = "suspicious";
-
-        // ドメイン年齢（若すぎるなら注意）
-        const ageDays = vtKey ? await domainAgeDaysViaVT(getDomain(it.finalUrl), vtKey) : null;
-        const young = (ageDays !== null && ageDays <= 30);
-        if (young && verdict === "harmless") verdict = "suspicious";
-
-        results.push({
-          ...it,
-          url: it.finalUrl,
-          verdict,
-          signals: { gsb, phishtank: pt, domainAgeDays: ageDays },
-          details: r.details
-        });
-      } catch (e) {
-        results.push({ ...it, url: it.finalUrl, verdict: "error", details: String(e) });
-      }
-
-      await updateProgress(prog, `スキャン中… (${i + 1}/${total})`, i + 1, total);
-    }
-
-    const counts = results.reduce((acc, r) => (acc[r.verdict] = (acc[r.verdict]||0)+1, acc), {});
-    await notify(`判定: ${Object.entries(counts).map(([k,v])=>`${k}: ${v}`).join(", ")}`);
-
-    const bad = results.filter(r => r.verdict === "malicious" || r.verdict === "suspicious");
-    
-    if (bad.length > 0) {
-      await createReportDraft(msg, raw, results, { auth });
-      await notify("危険判定あり：報告メールの下書きを作成しました。");
-    } else {
-      await notify("危険判定は見つかりませんでした。");
-    }
-  } catch (e) {
-    console.error(e);
-    await notify("処理中にエラー：" + e.message);
-  } finally {
-    runningScan = false;
-  }
-}
 
 // ------- 本ファイル内の URL 抽出ロジック（そのまま） ------- //
 function extractFromHtml(html) {
