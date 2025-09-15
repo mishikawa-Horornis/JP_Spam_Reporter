@@ -1,10 +1,13 @@
-// options.js 置き換え（DOMContentLoaded 後に実行）
+// options.js
 window.addEventListener("DOMContentLoaded", () => void initOptions());
 
 async function initOptions() {
   const $ = (id) => document.getElementById(id);
 
-  // Promise 統一（Thunderbird で chrome.storage がコールバック式でもOK）
+  // このスクリプトが誤って background 上で評価された場合に備えてガード
+  if (!$("#vtApiKey")) return;
+
+  // Promise ベースに統一（Thunderbird で chrome.storage がコールバック式でもOK）
   const storage = (typeof browser !== "undefined" && browser.storage)
     ? browser.storage
     : {
@@ -20,11 +23,11 @@ async function initOptions() {
         },
       };
 
-  // 読み込み（未設定は既定値）
+  // 既存値を読み込み（未設定は既定値）
   let saved = {};
   try {
     saved = await storage.local.get([
-      "vtApiKey","gsbApiKey","ptAppKey","toAntiPhishing","toDekyo","attachEml"
+      "vtApiKey", "gsbApiKey", "ptAppKey", "toAntiPhishing", "toDekyo", "attachEml"
     ]);
   } catch (e) {
     console.error("[options] storage.get error:", e);
@@ -33,17 +36,17 @@ async function initOptions() {
 
   $("#vtApiKey").value       = saved.vtApiKey ?? "";
   $("#gsbApiKey").value      = saved.gsbApiKey ?? "";
-  $("#ptAppKey").value       = saved.ptAppKey ?? ""; // ←空でもOK
+  $("#ptAppKey").value       = saved.ptAppKey ?? "";                      // ←空でもOK
   $("#toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
   $("#toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp";
-  $("#attachEml").checked    = saved.attachEml ?? true;
+  $("#attachEml").checked    = (saved.attachEml ?? true);
 
   // 保存
   $("#save").addEventListener("click", async () => {
     const payload = {
       vtApiKey: $("#vtApiKey").value.trim(),
       gsbApiKey: $("#gsbApiKey").value.trim(),
-      ptAppKey:  $("#ptAppKey").value.trim(),               // 空文字可
+      ptAppKey:  $("#ptAppKey").value.trim(),             // ←空文字も保存
       toAntiPhishing: $("#toAntiPhishing").value.trim(),
       toDekyo: $("#toDekyo").value.trim(),
       attachEml: $("#attachEml").checked,
