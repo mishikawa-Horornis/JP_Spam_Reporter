@@ -61,6 +61,36 @@ async function loadKeys() {
   return { vtApiKey, gsbApiKey, ptAppKey };
 }
 
+const { vtApiKey, gsbApiKey, ptAppKey } = await loadKeys();
+const caps = { vt: !!vtApiKey, gsb: !!gsbApiKey, pt: true }; // ← PTはAppKey空でもSimpleAPIで可
+if (!caps.vt && !caps.gsb && !caps.pt) {
+  return notify("APIキーが未設定です（VT/GSB/PT のいずれかを設定してください）。");
+}
+
+// 先にGSBまとめ照会（あるときだけ）
+const gsbMap = caps.gsb ? await gsbCheckBatch(items.map(x => x.finalUrl), gsbApiKey) : {};
+
+for (let i = 0; i < items.length; i++) {
+  const it = items[i];
+  let verdict = "unknown", vtDetails = null;
+
+  if (caps.vt) {
+    const r = await vtCheckUrl(vtApiKey, it.finalUrl);
+    verdict = r.verdict;
+    vtDetails = r.details || null;
+  }
+
+  const gsb = caps.gsb ? (gsbMap[it.finalUrl] || "unknown") : "unknown";
+  if (gsb === "listed" && verdict === "harmless") verdict = "suspicious";
+
+  const pt = await phishTankCheck(it.finalUrl, ptAppKey || ""); // 空でSimpleAPI
+  if (pt === "listed" && verdict !== "malicious") verdict = "suspicious";
+
+  const ageDays = caps.vt ? await domainAgeDaysViaVT(getDomain(it.finalUrl), vtApiKey) : null;
+  if (ageDays !== null && ageDays <= 30 && verdict === "harmless") verdict = "suspicious";
+  return { vtApiKey, gsbApiKey, ptAppKey };
+}
+=======
 // ------- メニュー・ボタンのリスナー ------- //
 browser.messageDisplayAction.onClicked.addListener((tab) => {
   handleCheckAndMaybeReport(tab).catch(console.error);  // <- top-level await を避ける
