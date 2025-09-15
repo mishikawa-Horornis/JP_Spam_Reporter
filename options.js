@@ -1,66 +1,62 @@
-// options.js
+// options.js 置き換え（DOMContentLoaded 後に実行）
+window.addEventListener("DOMContentLoaded", () => void initOptions());
 
-// ヘルパ：要素取得（なければ即エラー）
-const must = (id) => {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`Missing element #${id}`);
-  return el;
-};
+async function initOptions() {
+  const $ = (id) => document.getElementById(id);
 
-// 値取得（checkbox対応）
-const getVal = (id) => {
-  const el = must(id);
-  if (el.type === 'checkbox') return el.checked;
-  return (el.value || '').trim();
-};
+  // Promise 統一（Thunderbird で chrome.storage がコールバック式でもOK）
+  const storage = (typeof browser !== "undefined" && browser.storage)
+    ? browser.storage
+    : {
+        local: {
+          get: (keys) => new Promise((resolve, reject) => {
+            try { chrome.storage.local.get(keys, (v) => resolve(v || {})); }
+            catch (e) { reject(e); }
+          }),
+          set: (obj) => new Promise((resolve, reject) => {
+            try { chrome.storage.local.set(obj, () => resolve()); }
+            catch (e) { reject(e); }
+          }),
+        },
+      };
 
-const setVal = (id, v) => {
-  const el = must(id);
-  if (el.type === 'checkbox') el.checked = !!v;
-  else el.value = v ?? '';
-};
-
-async function saveOptions() {
-  const status = document.getElementById('status'); // <div id="status"></div> を用意
+  // 読み込み（未設定は既定値）
+  let saved = {};
   try {
+    saved = await storage.local.get([
+      "vtApiKey","gsbApiKey","ptAppKey","toAntiPhishing","toDekyo","attachEml"
+    ]);
+  } catch (e) {
+    console.error("[options] storage.get error:", e);
+    $("#status").textContent = "設定の読み込みに失敗しました";
+  }
+
+  $("#vtApiKey").value       = saved.vtApiKey ?? "";
+  $("#gsbApiKey").value      = saved.gsbApiKey ?? "";
+  $("#ptAppKey").value       = saved.ptAppKey ?? ""; // ←空でもOK
+  $("#toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
+  $("#toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp";
+  $("#attachEml").checked    = saved.attachEml ?? true;
+
+  // 保存
+  $("#save").addEventListener("click", async () => {
     const payload = {
-      vtApiKey:       getVal('vtApiKey'),
-      gsbApiKey:      getVal('gsbApiKey'),
-      ptAppKey:       getVal('ptAppKey'),
-      toAntiPhishing: getVal('toAntiPhishing'),
-      toDekyo:        getVal('toDekyo'),
-      attachEml:      getVal('attachEml'),
+      vtApiKey: $("#vtApiKey").value.trim(),
+      gsbApiKey: $("#gsbApiKey").value.trim(),
+      ptAppKey:  $("#ptAppKey").value.trim(),               // 空文字可
+      toAntiPhishing: $("#toAntiPhishing").value.trim(),
+      toDekyo: $("#toDekyo").value.trim(),
+      attachEml: $("#attachEml").checked,
     };
-
-    await browser.storage.local.set(payload);
-    status.textContent = '保存しました。';
-    setTimeout(() => (status.textContent = ''), 3000);
-  } catch (e) {
-    console.error(e);
-    status.textContent = `保存に失敗：${e.message}`;
-  }
+    try {
+      await storage.local.set(payload);
+      $("#status").textContent = "保存しました";
+      console.log("[options] saved:", payload);
+    } catch (e) {
+      console.error("[options] storage.set error:", e);
+      $("#status").textContent = "保存に失敗しました";
+    } finally {
+      setTimeout(() => $("#status").textContent = "", 2000);
+    }
+  });
 }
-
-async function restoreOptions() {
-  try {
-    const keys = [
-      'vtApiKey','gsbApiKey','ptAppKey',
-      'toAntiPhishing','toDekyo','attachEml'
-    ];
-    const data = await browser.storage.local.get(keys);
-    setVal('vtApiKey',       data.vtApiKey ?? '');
-    setVal('gsbApiKey',      data.gsbApiKey ?? '');
-    setVal('ptAppKey',       data.ptAppKey ?? '');
-    setVal('toAntiPhishing', data.toAntiPhishing ?? '');
-    setVal('toDekyo',        data.toDekyo ?? '');
-    setVal('attachEml',      !!data.attachEml);
-  } catch (e) {
-    console.error(e);
-  }
-}
-
-// DOM 準備後にイベント設定
-document.addEventListener('DOMContentLoaded', () => {
-  restoreOptions();
-  document.getElementById('saveBtn').addEventListener('click', saveOptions);
-});
