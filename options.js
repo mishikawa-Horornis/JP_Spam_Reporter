@@ -1,3 +1,4 @@
+// options.js 置き換え
 (async function () {
   const $ = (id) => document.getElementById(id);
 
