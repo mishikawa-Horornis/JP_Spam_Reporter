@@ -61,6 +61,34 @@ async function loadKeys() {
   return { vtApiKey, gsbApiKey, ptAppKey };
 }
 
+// ------- メニュー・ボタンのリスナー ------- //
+browser.messageDisplayAction.onClicked.addListener((tab) => {
+  handleCheckAndMaybeReport(tab).catch(console.error);  // <- top-level await を避ける
+});
+
+
+browser.menus.create({
+  id: "jp-spam-check",
+  title: "このメールをチェック＆報告下書き",
+  contexts: ["message_display_action_menu", "message_list", "tools_menu"],
+});
+
+browser.menus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== "jp-spam-check") return;
+  (async () => {
+    if (info.selectedMessages && info.selectedMessages.messages?.length) {
+      for (const m of info.selectedMessages.messages) {
+        await handleCheckAndMaybeReport({ id: tab?.id, _messageId: m.id });
+      }
+    } else {
+      await handleCheckAndMaybeReport(tab);
+    }
+  })().catch(console.error);
+});
+
+// 連打ガード
+let runningScan = false;
+
 // --- 2) 本体：キーの有無で分岐。1つでもあればスキャン継続 ---
 async function handleCheckAndMaybeReport(tab) {
   try {
