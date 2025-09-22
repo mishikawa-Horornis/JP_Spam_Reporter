@@ -1,4 +1,13 @@
 // background.js
+browser.menus.create({
+  id: "jp-check-report",
+  title: "メールをチェック＆報告",
+  contexts: ["tools_menu"],
+  onclick: async (info, tab) => {
+    const fn = checkMap[currentCheck] || checkMap["vt"];
+    await fn(tab);
+  }
+});
 // SPDX-License-Identifier: MIT
 const DEFAULT_MODE = "vt"; // vt | sb | pt
 const STORAGE_KEY = "checkMode";
