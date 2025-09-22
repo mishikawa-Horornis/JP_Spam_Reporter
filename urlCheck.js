@@ -1,36 +1,31 @@
-// SPDX-License-Identifier: MIT
-// どこからでも呼べるように globalThis に公開
 globalThis.vtCheckUrl = async function (apiKey, url) {
-  const analyze = await fetch("https://www.virustotal.com/api/v3/urls", {
+  const res = await fetch("https://www.virustotal.com/api/v3/urls", {
     method: "POST",
-    headers: {
-      "x-apikey": apiKey,
-      "content-type": "application/x-www-form-urlencoded"
-    },
+    headers: { "x-apikey": apiKey, "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ url })
   });
-  if (!analyze.ok) throw new Error("VT analyze failed: " + analyze.status);
-  const data = await analyze.json();
-  const id = data.data.id;
+  if (!res.ok) throw new Error("VT analyze failed: " + res.status);
+  const { data } = await res.json();
+  const id = data.id;
 
-  let verdict = "unknown";
-  let details = {};
-  for (let i = 0; i < 6; i++) {
+  let verdict = "unknown", details = {};
+  for (let i = 0; i < 10; i++) {                // 10回に増やす
     await new Promise(r => setTimeout(r, i ? 1500 : 0));
     const r = await fetch(`https://www.virustotal.com/api/v3/analyses/${id}`, {
       headers: { "x-apikey": apiKey }
     });
+    if (r.status === 429) { await new Promise(s => setTimeout(s, 2000)); continue; }
     if (!r.ok) continue;
-    const j = await r.json();
-    const stats = j.data?.attributes?.stats || {};
-    const malicious = Number(stats.malicious || 0);
-    const suspicious = Number(stats.suspicious || 0);
-    const harmless = Number(stats.harmless || 0);
 
-    details = { stats, status: j.data?.attributes?.status };
-    if (malicious > 0) { verdict = "malicious"; break; }
-    if (suspicious > 0) { verdict = "suspicious"; break; }
-    if (harmless > 0 && malicious === 0 && suspicious === 0) {
+    const j = await r.json();
+    const attr = j.data?.attributes;
+    const stats = attr?.stats || {};
+    details = { stats, status: attr?.status };
+
+    const mal = +stats.malicious || 0, sus = +stats.suspicious || 0, ok = +stats.harmless || 0;
+    if (mal > 0) { verdict = "malicious"; break; }
+    if (sus > 0) { verdict = "suspicious"; break; }
+    if (ok > 0 && mal === 0 && sus === 0 && attr?.status === "completed") {
       verdict = "harmless"; break;
     }
   }
