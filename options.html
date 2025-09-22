@@ -1,77 +1,70 @@
 <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>JP Mail Check Extension – 設定</title>
-    <style>
-      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:720px;margin:24px auto;line-height:1.6}
-      label{display:block;margin:12px 0 4px}
-      input[type=text]{width:100%;padding:8px}
-      .row{display:flex;gap:12px}
-      .row > div{flex:1}
-      .actions{margin-top:16px}
-    </style>
-  </head>
-  <body>
-    <h1>JP Mail Check Extension – 設定</h1>
-    <form id="form">
-      <fieldset>
-        <legend>チェック方式</legend>
-        <div class="row">
-          <label>
-            <input type="radio" name="checkMode" value="vt" />
-            VirusTotal を使ってチェック（推奨）
-          </label>
-        </div>
-        <div class="row">
-          <label>
-            <input type="radio" name="checkMode" value="gsb" />
-            Google Safe Browsing を使ってチェック
-          </label>
-        </div>
-        <div class="row">
-          <label>
-            <input type="radio" name="checkMode" value="pt" />
-            PhishTank を使ってチェック
-          </label>
-        </div>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>JP Mail Check Extension – 設定</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:760px;margin:24px auto;line-height:1.6;padding:0 12px}
+    fieldset{border:1px solid #ccc;border-radius:10px;padding:14px 16px;margin-bottom:18px}
+    legend{font-weight:600}
+    label{display:block;margin:10px 0 6px}
+    input[type="text"],input[type="email"]{width:100%;padding:8px;border:1px solid #bbb;border-radius:6px}
+    .row{display:flex;gap:12px}
+    .row > div{flex:1}
+    .actions{margin-top:12px;display:flex;gap:10px;align-items:center}
+    .hint{font-size:12px;color:#666}
+    button{padding:8px 14px;border-radius:8px;border:1px solid #999;background:#eee}
+  </style>
+</head>
+<body>
+  <h1>JP Mail Check Extension – 設定</h1>
 
-        <div class="actions">
-          <button id="save" type="submit">保存</button>
-          <button id="reset" type="button">デフォルトに戻す</button>
-          <span id="status" class="hint"></span>
+  <form id="form">
+    <fieldset>
+      <legend>チェック方式</legend>
+      <label><input type="radio" name="checkMode" value="vt" /> VirusTotal を使ってチェック（推奨）</label>
+      <label><input type="radio" name="checkMode" value="gsb" /> Google Safe Browsing を使ってチェック</label>
+      <label><input type="radio" name="checkMode" value="pt" /> PhishTank を使ってチェック</label>
+      <p class="hint">ここで選んだ方式が、ツールバーの「Check &amp; Report」ボタン実行時に使われます。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>API Keys</legend>
+      <label for="vtApiKey">VirusTotal API Key</label>
+      <input id="vtApiKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+
+      <label for="gsbApiKey">Google Safe Browsing API Key</label>
+      <input id="gsbApiKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+
+      <label for="ptAppKey">PhishTank App Key（任意・未設定可）</label>
+      <input id="ptAppKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+    </fieldset>
+
+    <fieldset>
+      <legend>報告先</legend>
+      <div class="row">
+        <div>
+          <label for="toAntiPhishing">フィッシング対策協議会</label>
+          <input id="toAntiPhishing" type="email" value="info@antiphishing.jp" />
         </div>
-        <p class="hint">ここで選んだ方式が、ツールバーの「Check &amp; Report」ボタン実行時に使われます。</p>
-      </fieldset>
-    </form>
-
-    <label>VirusTotal API Key</label>
-    <input id="vtApiKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-
-    <label>Google Safe Browsing API Key</label>
-    <input id="gsbApiKey" type="text"  placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-
-    <label>PhishTank App Key（任意・未設定可）</label>
-    <input id="ptAppKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
- 
-    <div class="row">
-      <div>
-        <label>報告先（フィッシング対策協議会）</label>
-        <input id="toAntiPhishing" type="text" value="info@antiphishing.jp" />
+        <div>
+          <label for="toDekyo">迷惑メール相談センター</label>
+          <input id="toDekyo" type="email" value="meiwaku@dekyo.or.jp" />
+        </div>
       </div>
-      <div>
-        <label>報告先（迷惑メール相談センター）</label>
-        <input id="toDekyo" type="text" value="meiwaku@dekyo.or.jp" />
-      </div>
-    </div>
 
-    <label><input id="attachEml" type="checkbox" checked /> 元メール(.eml)を添付する（推奨）</label>
+      <label><input id="attachEml" type="checkbox" checked /> 元メール（.eml）を添付する（推奨）</label>
+    </fieldset>
 
     <div class="actions">
-      <button id="save">保存</button>
-      <span id="status" style="margin-left:8px"></span>
+      <button id="save" type="submit">保存</button>
+      <button id="reset" type="button">デフォルトに戻す</button>
+      <span id="status" class="hint"></span>
     </div>
+  </form>
 
-    <script src="options.js"></script>
-  </body>
+  <script src="options.js"></script>
+</body>
 </html>
