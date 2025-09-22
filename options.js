@@ -1,65 +1,59 @@
 // options.js
-window.addEventListener("DOMContentLoaded", () => void initOptions());
+const DEFAULT_MODE = "vt"; // "vt" | "sb" | "pt"
+const key = "checkMode";
 
-async function initOptions() {
-  const $ = (id) => document.getElementById(id);
+function $(sel) { return document.querySelector(sel); }
 
-  // このスクリプトが誤って background 上で評価された場合に備えてガード
-  if (!$("#vtApiKey")) return;
-
-  // Promise ベースに統一（Thunderbird で chrome.storage がコールバック式でもOK）
-  const storage = (typeof browser !== "undefined" && browser.storage)
-    ? browser.storage
-    : {
-        local: {
-          get: (keys) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.get(keys, (v) => resolve(v || {})); }
-            catch (e) { reject(e); }
-          }),
-          set: (obj) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.set(obj, () => resolve()); }
-            catch (e) { reject(e); }
-          }),
-        },
-      };
-
-  // 既存値を読み込み（未設定は既定値）
-  let saved = {};
+async function load() {
   try {
-    saved = await storage.local.get([
-      "vtApiKey", "gsbApiKey", "ptAppKey", "toAntiPhishing", "toDekyo", "attachEml"
-    ]);
+    const obj = await browser.storage.local.get({ [key]: DEFAULT_MODE });
+    const mode = obj[key] || DEFAULT_MODE;
+    const el = document.querySelector(`input[name="checkMode"][value="${mode}"]`);
+    if (el) el.checked = true;
   } catch (e) {
-    console.error("[options] storage.get error:", e);
-    $("#status").textContent = "設定の読み込みに失敗しました";
+    console.error("load options failed:", e);
   }
+}
 
-  $("#vtApiKey").value       = saved.vtApiKey ?? "";
-  $("#gsbApiKey").value      = saved.gsbApiKey ?? "";
-  $("#ptAppKey").value       = saved.ptAppKey ?? "";                      // ←空でもOK
-  $("#toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
-  $("#toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp";
-  $("#attachEml").checked    = (saved.attachEml ?? true);
+async function save(mode) {
+  await browser.storage.local.set({ [key]: mode });
+}
 
-  // 保存
-  $("#save").addEventListener("click", async () => {
-    const payload = {
-      vtApiKey: $("#vtApiKey").value.trim(),
-      gsbApiKey: $("#gsbApiKey").value.trim(),
-      ptAppKey:  $("#ptAppKey").value.trim(),             // ←空文字も保存
-      toAntiPhishing: $("#toAntiPhishing").value.trim(),
-      toDekyo: $("#toDekyo").value.trim(),
-      attachEml: $("#attachEml").checked,
-    };
+document.addEventListener("DOMContentLoaded", () => {
+  load();
+
+  $("#form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const checked = document.querySelector('input[name="checkMode"]:checked');
+    const mode = checked ? checked.value : DEFAULT_MODE;
+
     try {
-      await storage.local.set(payload);
-      $("#status").textContent = "保存しました";
-      console.log("[options] saved:", payload);
+      await save(mode);
+      const s = $("#status");
+      s.textContent = "保存しました。";
+      s.className = "hint ok";
+      setTimeout(() => { s.textContent = ""; s.className = "hint"; }, 1500);
     } catch (e) {
-      console.error("[options] storage.set error:", e);
-      $("#status").textContent = "保存に失敗しました";
-    } finally {
-      setTimeout(() => $("#status").textContent = "", 2000);
+      const s = $("#status");
+      s.textContent = "保存に失敗しました。";
+      s.className = "hint err";
+      console.error(e);
     }
   });
-}
+
+  $("#reset").addEventListener("click", async () => {
+    try {
+      await save(DEFAULT_MODE);
+      await load();
+      const s = $("#status");
+      s.textContent = "デフォルト（VirusTotal）に戻しました。";
+      s.className = "hint ok";
+      setTimeout(() => { s.textContent = ""; s.className = "hint"; }, 1500);
+    } catch (e) {
+      const s = $("#status");
+      s.textContent = "リセットに失敗しました。";
+      s.className = "hint err";
+      console.error(e);
+    }
+  });
+});

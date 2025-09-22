@@ -14,6 +14,36 @@
   </head>
   <body>
     <h1>JP Mail Check Extension – 設定</h1>
+    <form id="form">
+      <fieldset>
+        <legend>チェック方式</legend>
+        <div class="row">
+          <label>
+            <input type="radio" name="checkMode" value="vt" />
+            VirusTotal を使ってチェック（推奨）
+          </label>
+        </div>
+        <div class="row">
+          <label>
+            <input type="radio" name="checkMode" value="sb" />
+            Google Safe Browsing を使ってチェック
+          </label>
+        </div>
+        <div class="row">
+          <label>
+            <input type="radio" name="checkMode" value="pt" />
+            PhishTank を使ってチェック
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="save" type="submit">保存</button>
+          <button id="reset" type="button">デフォルトに戻す</button>
+          <span id="status" class="hint"></span>
+        </div>
+        <p class="hint">ここで選んだ方式が、ツールバーの「Check &amp; Report」ボタン実行時に使われます。</p>
+      </fieldset>
+    </form>
 
     <label>VirusTotal API Key</label>
     <input id="vtApiKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
@@ -42,6 +72,6 @@
       <span id="status" style="margin-left:8px"></span>
     </div>
 
-    <script src="options.js" defer></script>
+    <script src="options.js"></script>
   </body>
 </html>

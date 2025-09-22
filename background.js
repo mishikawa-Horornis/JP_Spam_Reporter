@@ -1,6 +1,81 @@
 // background.js
 // SPDX-License-Identifier: MIT
+const DEFAULT_MODE = "vt"; // vt | sb | pt
+const STORAGE_KEY = "checkMode";
+let currentCheck = DEFAULT_MODE;
+// ===== チェック関数（既存を呼び出す）=====
+async function runVirusTotal(tab) {
+  // 既存の VT チェック処理を呼ぶ
+  return runCheck_VirusTotal?.(tab);
+}
+async function runSafeBrowsing(tab) {
+  return runCheck_SafeBrowsing?.(tab);
+}
+async function runPhishTank(tab) {
+  return runCheck_PhishTank?.(tab);
+}
 
+const checkMap = {
+  vt: runVirusTotal,
+  sb: runSafeBrowsing,
+  pt: runPhishTank,
+};
+
+// 拡張起動時
+browser.runtime.onStartup?.addListener(loadMode);
+browser.runtime.onInstalled?.addListener(loadMode);
+loadMode();
+
+// オプション変更の即時反映
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes[STORAGE_KEY]) {
+    const v = changes[STORAGE_KEY].newValue;
+    if (v === "vt" || v === "sb" || v === "pt") {
+      currentCheck = v;
+      console.log("[JP Spam Reporter] mode changed ->", currentCheck);
+    }
+  }
+});
+
+// ===== ボタンクリック =====
+browser.messageDisplayAction.onClicked.addListener(async (tab) => {
+  const fn = checkMap[currentCheck] || checkMap[DEFAULT_MODE];
+  try {
+    await fn(tab);
+  } catch (e) {
+    console.error("check run error:", e);
+    // 必要なら通知
+    try {
+      await browser.notifications.create({
+        type: "basic",
+        iconUrl: "icons/jp-spam-reporter-32.png",
+        title: "JP Spam Reporter",
+        message: "チェックに失敗しました。詳細はコンソールを確認してください。",
+      });
+    } catch {}
+  }
+});
+// ===== 設定読み込み & 変更監視 =====
+async function loadMode() {
+  try {
+    const obj = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
+    const mode = obj[STORAGE_KEY];
+    if (mode === "vt" || mode === "sb" || mode === "pt") {
+      currentCheck = mode;
+    } else {
+      currentCheck = DEFAULT_MODE;
+    }
+    console.log("[JP Spam Reporter] check mode:", currentCheck);
+  } catch (e) {
+    console.error("loadMode failed:", e);
+    currentCheck = DEFAULT_MODE;
+  }
+}
+
+browser.messageDisplayAction.onClicked.addListener(() => {
+  console.log("Check & Report clicked");
+});
 // ------- 小ユーティリティ ------- //
 function notify(text) {
   return browser.notifications.create({
@@ -291,4 +366,40 @@ function extractUrlsFromFull(full) {
   return Array.from(uniq.values());
 }
 
+// background.js の末尾あたり
+const MENU_ROOT = "jp-mode-root";
+const MENU_MODES = {
+  vt: "VirusTotal",
+  sb: "Safe Browsing",
+  pt: "PhishTank",
+};
+
+async function rebuildMenu() {
+  await browser.menus.removeAll();
+  await browser.menus.create({
+    id: MENU_ROOT,
+    title: "JP Spam Reporter: チェック方式",
+    contexts: ["message_display_action", "message_display"],
+  });
+  for (const [val, label] of Object.entries(MENU_MODES)) {
+    await browser.menus.create({
+      id: `mode-${val}`,
+      parentId: MENU_ROOT,
+      title: `${label}${currentCheck === val ? " ✓" : ""}`,
+      contexts: ["message_display_action", "message_display"],
+    });
+  }
+  browser.menus.refresh?.();
+}
+
+browser.menus.onClicked.addListener(async (info) => {
+  if (!info.menuItemId.startsWith("mode-")) return;
+  const val = info.menuItemId.replace("mode-", "");
+  await browser.storage.local.set({ [STORAGE_KEY]: val }); // -> 変更監視で反映
+  await rebuildMenu();
+});
+
+browser.runtime.onInstalled?.addListener(rebuildMenu);
+browser.runtime.onStartup?.addListener(rebuildMenu);
+loadMode().then(rebuildMenu);
 
