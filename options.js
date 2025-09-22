@@ -1,5 +1,5 @@
 // options.js
-const DEFAULT_MODE = "vt"; // "vt" | "sb" | "pt"
+const DEFAULT_MODE = "vt"; // "vt" | "gsb" | "pt"
 const key = "checkMode";
 
 function $(sel) { return document.querySelector(sel); }
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
 const DEFAULTS = {
   checkMode: "vt",
   vtKey: "",
-  sbKey: "",
+  gsbKey: "",
   ptKey: "",
   toDekyo: "info@antiphishing.jp",
   toAntiPhishing: "meiwaku@dekyo.or.jp",
