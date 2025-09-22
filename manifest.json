@@ -27,8 +27,8 @@
       "utils/auth.js",
       "utils/url.js",
       "riskCheck.js",
-      "background.js",
-      "urlCheck.js"
+      "urlCheck.js",
+      "background.js"
     ]
   },
   "message_display_action": {
