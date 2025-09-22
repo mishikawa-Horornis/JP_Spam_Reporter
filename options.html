@@ -5,17 +5,83 @@
   <title>JP Mail Check Extension – 設定</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root { color-scheme: light dark; }
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:760px;margin:24px auto;line-height:1.6;padding:0 12px}
-    fieldset{border:1px solid #ccc;border-radius:10px;padding:14px 16px;margin-bottom:18px}
-    legend{font-weight:600}
-    label{display:block;margin:10px 0 6px}
-    input[type="text"],input[type="email"]{width:100%;padding:8px;border:1px solid #bbb;border-radius:6px}
-    .row{display:flex;gap:12px}
-    .row > div{flex:1}
-    .actions{margin-top:12px;display:flex;gap:10px;align-items:center}
-    .hint{font-size:12px;color:#666}
-    button{padding:8px 14px;border-radius:8px;border:1px solid #999;background:#eee}
+
+    /* テーマ変数 */
+    :root{
+      --bg:#ffffff;
+      --fg:#111;
+      --muted:#666;
+      --border:#c9c9c9;
+      --btn-bg:#0a84ff;         /* macOSっぽいブルー */
+      --btn-fg:#fff;
+      --btn-bg-hover:#006be6;
+      --btn-border:#0060cf;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#121212;
+        --fg:#f2f2f2;
+        --muted:#a9a9a9;
+        --border:#3a3a3a;
+        --btn-bg:#2b7bff;
+        --btn-fg:#fff;
+        --btn-bg-hover:#1f60cc;
+        --btn-border:#1a55b5;
+      }
+    }
+
+    /* 全体 */
+    body{
+      background:var(--bg);
+      color:var(--fg);
+    }
+
+    /* 入力類（枠が暗いテーマで埋もれないように） */
+    input[type="text"], input[type="email"]{
+      background:transparent;
+      color:var(--fg);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:8px 10px;
+    }
+
+    /* ラベルや補足 */
+    .hint{ color:var(--muted); }
+
+    /* ボタン：強いコントラスト */
+    button{
+      appearance:none;
+      border:1px solid var(--btn-border);
+      background:var(--btn-bg);
+      color:var(--btn-fg);
+      border-radius:10px;
+      padding:8px 14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:background .15s ease, transform .02s ease;
+    }
+    button:hover{ background:var(--btn-bg-hover); }
+    button:active{ transform:translateY(1px); }
+
+    /* セカンダリ（グレー）ボタンが欲しい場合のクラス */
+    button.secondary{
+      background:transparent;
+      color:var(--fg);
+      border:1px solid var(--border);
+    }
+    button.secondary:hover{
+      background:rgba(127,127,127,.12);
+    }
+
+    /* 無効ボタンも読める明度に */
+    button:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+      color:var(--btn-fg);
+      background:var(--btn-bg);
+      border-color:var(--btn-border);
+    }
+
   </style>
 </head>
 <body>
