@@ -57,3 +57,63 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+// options.js
+const DEFAULTS = {
+  checkMode: "vt",
+  vtKey: "",
+  sbKey: "",
+  ptKey: "",
+  toDekyo: "info@antiphishing.jp",
+  toAntiPhishing: "meiwaku@dekyo.or.jp",
+  attachEml: true,
+};
+
+async function load() {
+  const obj = await browser.storage.local.get(DEFAULTS);
+
+  // ラジオボタン
+  document.querySelector(`input[name="checkMode"][value="${obj.checkMode}"]`).checked = true;
+
+  // テキスト入力
+  document.getElementById("vtKey").value = obj.vtKey;
+  document.getElementById("gsbKey").value = obj.gsbKey;
+  document.getElementById("ptKey").value = obj.ptKey;
+  document.getElementById("toDekyo").value = obj.reportAddr1;
+  document.getElementById("toAntiPhishing").value = obj.reportAddr2;
+
+  // チェックボックス
+  document.getElementById("attachEml").checked = obj.attachEml;
+}
+
+async function save() {
+  const data = {
+    checkMode: document.querySelector('input[name="checkMode"]:checked').value,
+    vtKey: document.getElementById("vtKey").value,
+    gsbKey: document.getElementById("gsbKey").value,
+    ptKey: document.getElementById("ptKey").value,
+    reportAddr1: document.getElementById("toDekyo").value,
+    reportAddr2: document.getElementById("toAntiPhishing").value,
+    attachEml: document.getElementById("attachEml").checked,
+  };
+
+  await browser.storage.local.set(data);
+  console.log("[JP Mail Check] 保存しました", data);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  load();
+
+  document.getElementById("save").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await save();
+    alert("保存しました");
+  });
+
+  document.getElementById("reset").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await browser.storage.local.set(DEFAULTS);
+    await load();
+    alert("デフォルトに戻しました");
+  });
+});
