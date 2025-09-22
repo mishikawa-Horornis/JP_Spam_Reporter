@@ -1,99 +1,124 @@
-// background.js（最小安定版）
+/// background.js（関数未定義に強い、安全版）
 
-// ====== 設定切替（必要なら） ======
-
-const DEFAULT_MODE = "vt";
+const DEFAULT_MODE = "vt";           // vt | gsb | pt
 const STORAGE_KEY  = "checkMode";
 
-// ✅ 有効モードを gsb 含めて定義
-const VALID_MODES = new Set(["vt", "gsb", "pt"]);
 let currentCheck = DEFAULT_MODE;
 
-// 読み込み時のバリデーションも gsb に対応
+// 起動時にモードを読み込む
 async function loadMode() {
   try {
-    const obj  = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
-    const mode = obj[STORAGE_KEY];
-    currentCheck = VALID_MODES.has(mode) ? mode : DEFAULT_MODE;
-    console.log("[JP Spam Reporter] check mode:", currentCheck);
+    const obj = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
+    const m = obj[STORAGE_KEY];
+    currentCheck = (m === "vt" || m === "gsb" || m === "pt") ? m : DEFAULT_MODE;
+    console.log("[JP Mail Check] mode:", currentCheck);
   } catch (e) {
-    console.error("loadMode failed:", e);
+    console.error(e);
     currentCheck = DEFAULT_MODE;
   }
 }
+browser.runtime.onStartup?.addListener(loadMode);
+browser.runtime.onInstalled?.addListener(loadMode);
+loadMode();
 
-// ✅ マッピングキーを gsb に
-async function runVirusTotal(tab){ return runCheck_VirusTotal?.(tab); }
-async function runSafeBrowsing(tab){ return runCheck_SafeBrowsing?.(tab); }
-async function runPhishTank(tab){ return runCheck_PhishTank?.(tab); }
-
-const checkMap = {
-  vt:  runVirusTotal,
-  gsb: runSafeBrowsing,
-  pt:  runPhishTank,
-};
-
-// ✅ メニューの表示名/ID も gsb に
-const MENU_ROOT = "jp-mode-root";
-const MENU_MODES = {
-  vt:  "VirusTotal",
-  gsb: "Safe Browsing",
-  pt:  "PhishTank",
-};
-// ====== チェック関数（あなたの関数を呼ぶ） ======
-async function runVT(tab)  { return runCheck_VirusTotal?.(tab); }
-async function runGSB(tab) { return runCheck_SafeBrowsing?.(tab); }
-async function runPT(tab)  { return runCheck_PhishTank?.(tab); }
-
-// ====== 疑似ステータス表示ユーティリティ ======
-function notify(text) {
-  return browser.notifications.create({ type: "basic", title: "JP Spam Reporter", message: text });
+// 進捗・結果の表示ユーティリティ
+function notify(message) {
+  return browser.notifications.create({
+    type: "basic",
+    title: "JP Spam Reporter",
+    message,
+  });
 }
 async function setTitle(title, tabId) {
   try { await browser.messageDisplayAction.setTitle({ title, tabId }); } catch {}
 }
 
-// ====== 本体 ======
-async function handleCheckAndMaybeReport(tab) {
+// ストレージから必要な設定だけ読む
+async function loadSettings() {
+  const defaults = {
+    vtApiKey: "",
+    gsbApiKey: "",
+    ptAppKey: "",
+    toAntiPhishing: "info@antiphishing.jp",
+    toDekyo: "meiwaku@dekyo.or.jp",
+    attachEml: true,
+  };
+  return browser.storage.local.get(defaults);
+}
+
+// === 実チェック関数の “存在確認つき” ラッパ ===
+// ここで “未定義ならエラーを出して止める” ようにする
+async function runCheckVT(tab, settings) {
+  if (!settings.vtApiKey) {
+    await notify("VirusTotal API Key が設定されていません。オプションで設定してください。");
+    return;
+  }
+  if (typeof runCheck_VirusTotal !== "function") {
+    throw new Error("runCheck_VirusTotal is not defined");
+  }
+  return runCheck_VirusTotal(tab, settings);
+}
+async function runCheckGSB(tab, settings) {
+  if (!settings.gsbApiKey) {
+    await notify("Google Safe Browsing API Key が設定されていません。オプションで設定してください。");
+    return;
+  }
+  if (typeof runCheck_SafeBrowsing !== "function") {
+    throw new Error("runCheck_SafeBrowsing is not defined");
+  }
+  return runCheck_SafeBrowsing(tab, settings);
+}
+async function runCheckPT(tab, settings) {
+  // PhishTankはキー任意ならチェックしない。任意であればこのまま
+  if (typeof runCheck_PhishTank !== "function") {
+    throw new Error("runCheck_PhishTank is not defined");
+  }
+  return runCheck_PhishTank(tab, settings);
+}
+
+// モード→関数のマップ（gsb に統一）
+const checkMap = {
+  vt:  runCheckVT,
+  gsb: runCheckGSB,
+  pt:  runCheckPT,
+};
+
+// メイン実行
+async function handleCheck(tab) {
+  const tabId = tab?.id;
   try {
-    await setTitle("Scanning…", tab?.id);
-    await notify("チェックを開始します");
+    await setTitle("Scanning…", tabId);
+    const settings = await loadSettings();
 
+    // モード読込（直前で変わっている可能性に備える）
+    await loadMode();
     const fn = checkMap[currentCheck] || checkMap[DEFAULT_MODE];
-    const result = await fn(tab); // ← あなたの既存処理
 
-    // ここで result を見て要約を出す
-    await notify("チェック完了：危険なし（例）");
+    await notify(`チェック開始（${currentCheck}）`);
+    const result = await fn(tab, settings);
+
+    // ここで result を要約して通知
+    await notify("チェック完了");
   } catch (e) {
     console.error(e);
     await notify("エラー: " + (e.message || e));
   } finally {
-    await setTitle("Check & Report", tab?.id);
+    await setTitle("Check & Report", tabId);
   }
 }
 
-// ====== クリック/メニュー ======
+// クリック/メニューから実行
 browser.messageDisplayAction.onClicked.addListener((tab) => {
-  handleCheckAndMaybeReport(tab).catch(console.error);
+  handleCheck(tab).catch(console.error);
 });
 
-
+// Toolsメニューにも追加（任意）
 browser.menus.create({
-  id: "jp-spam-check",
+  id: "jp-check-report",
   title: "このメールをチェック＆報告下書き",
-  contexts: ["message_display_action_menu", "message_list", "tools_menu"],
+  contexts: ["tools_menu", "message_display_action_menu", "message_list"],
 });
-
 browser.menus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId !== "jp-spam-check") return;
-  (async () => {
-    if (info.selectedMessages?.messages?.length) {
-      for (const m of info.selectedMessages.messages) {
-        await handleCheckAndMaybeReport({ id: tab?.id, _messageId: m.id });
-      }
-    } else {
-      await handleCheckAndMaybeReport(tab);
-    }
-  })().catch(console.error);
+  if (info.menuItemId !== "jp-check-report") return;
+  handleCheck(tab).catch(console.error);
 });
-
