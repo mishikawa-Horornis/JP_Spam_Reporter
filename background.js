@@ -37,7 +37,22 @@ browser.storage.onChanged.addListener((changes, area) => {
     }
   }
 });
+browser.messageDisplayAction.onClicked.addListener(async (tab) => {
+  const LOG = "[JP Spam Reporter]";
+  console.log(`${LOG} button clicked`, tab?.id);
 
+  try {
+    await browser.notifications.create({
+      type: "basic",
+      iconUrl: "icons/jp-spam-reporter-32.png", // 32px PNG でOK
+      title: "JP Spam Reporter",
+      message: "ボタンは反応しています（ここからチェック処理へ）",
+    });
+  } catch (e) {
+    console.error(`${LOG} notify failed`, e);
+  }
+});
+/*
 // ===== ボタンクリック =====
 browser.messageDisplayAction.onClicked.addListener(async (tab) => {
   const fn = checkMap[currentCheck] || checkMap[DEFAULT_MODE];
@@ -72,7 +87,7 @@ async function loadMode() {
     currentCheck = DEFAULT_MODE;
   }
 }
-
+*/
 browser.messageDisplayAction.onClicked.addListener(() => {
   console.log("Check & Report clicked");
 });
