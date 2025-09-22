@@ -1,31 +1,49 @@
 // background.js（最小安定版）
 
 // ====== 設定切替（必要なら） ======
-const DEFAULT_MODE = "vt"; // vt | gsb | pt
-const STORAGE_KEY = "checkMode";
+
+const DEFAULT_MODE = "vt";
+const STORAGE_KEY  = "checkMode";
+
+// ✅ 有効モードを gsb 含めて定義
+const VALID_MODES = new Set(["vt", "gsb", "pt"]);
 let currentCheck = DEFAULT_MODE;
 
+// 読み込み時のバリデーションも gsb に対応
 async function loadMode() {
   try {
-    const obj = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
-    const m = obj[STORAGE_KEY];
-    currentCheck = (m === "vt" || m === "gsb" || m === "pt") ? m : DEFAULT_MODE;
-    console.log("[JP Spam Reporter] mode:", currentCheck);
+    const obj  = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
+    const mode = obj[STORAGE_KEY];
+    currentCheck = VALID_MODES.has(mode) ? mode : DEFAULT_MODE;
+    console.log("[JP Spam Reporter] check mode:", currentCheck);
   } catch (e) {
     console.error("loadMode failed:", e);
     currentCheck = DEFAULT_MODE;
   }
 }
-browser.runtime.onStartup?.addListener(loadMode);
-browser.runtime.onInstalled?.addListener(loadMode);
-loadMode();
 
+// ✅ マッピングキーを gsb に
+async function runVirusTotal(tab){ return runCheck_VirusTotal?.(tab); }
+async function runSafeBrowsing(tab){ return runCheck_SafeBrowsing?.(tab); }
+async function runPhishTank(tab){ return runCheck_PhishTank?.(tab); }
+
+const checkMap = {
+  vt:  runVirusTotal,
+  gsb: runSafeBrowsing,
+  pt:  runPhishTank,
+};
+
+// ✅ メニューの表示名/ID も gsb に
+const MENU_ROOT = "jp-mode-root";
+const MENU_MODES = {
+  vt:  "VirusTotal",
+  gsb: "Safe Browsing",
+  pt:  "PhishTank",
+};
 // ====== チェック関数（あなたの関数を呼ぶ） ======
 async function runVT(tab)  { return runCheck_VirusTotal?.(tab); }
 async function runGSB(tab) { return runCheck_SafeBrowsing?.(tab); }
 async function runPT(tab)  { return runCheck_PhishTank?.(tab); }
-
-const checkMap = { vt: runVT, gsb: runGSB, pt: runPT };
 
 // ====== 疑似ステータス表示ユーティリティ ======
 function notify(text) {
