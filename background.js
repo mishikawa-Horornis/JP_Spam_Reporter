@@ -1,22 +1,42 @@
 /// background.js（関数未定義に強い、安全版）
 
-const DEFAULT_MODE = "vt";           // vt | gsb | pt
+// background.js 内
+
+// 1) モード名を gsb で統一
+const DEFAULT_MODE = "vt";
 const STORAGE_KEY  = "checkMode";
+const VALID_MODES  = new Set(["vt", "gsb", "pt"]);
+let currentCheck   = DEFAULT_MODE;
 
-let currentCheck = DEFAULT_MODE;
-
-// 起動時にモードを読み込む
 async function loadMode() {
-  try {
-    const obj = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
-    const m = obj[STORAGE_KEY];
-    currentCheck = (m === "vt" || m === "gsb" || m === "pt") ? m : DEFAULT_MODE;
-    console.log("[JP Mail Check] mode:", currentCheck);
-  } catch (e) {
-    console.error(e);
-    currentCheck = DEFAULT_MODE;
-  }
+  const obj = await browser.storage.local.get({ [STORAGE_KEY]: DEFAULT_MODE });
+  currentCheck = VALID_MODES.has(obj[STORAGE_KEY]) ? obj[STORAGE_KEY] : DEFAULT_MODE;
 }
+
+// 2) どちらのキー名でも読めるようにする
+async function loadKeys() {
+  // 新旧キー名の両対応（存在する方を採用）
+  const st = await browser.storage.local.get(null);
+  const vtApiKey  = st.vtApiKey  ?? st.vtKey  ?? "";
+  const gsbApiKey = st.gsbApiKey ?? st.gsbKey ?? "";
+  const ptAppKey  = st.ptAppKey  ?? st.ptKey  ?? "";
+  return { vtApiKey, gsbApiKey, ptAppKey };
+}
+
+// 3) マップも gsb に統一（未定義保護つきラッパ）
+async function runVT(tab, set){ if (!set.vtApiKey) return;
+  if (typeof vtCheckUrl !== "function") throw new Error("vtCheckUrl is not defined");
+  return vtCheckUrl(set.vtApiKey, "https://example"); // ← 実際は展開済み URL を渡す
+}
+async function runGSB(tab, set){ if (!set.gsbApiKey) return;
+  if (typeof gsbCheckBatch !== "function") throw new Error("gsbCheckBatch is not defined");
+  return gsbCheckBatch(["https://example"], set.gsbApiKey);
+}
+async function runPT(tab, set){
+  if (typeof phishTankCheck !== "function") throw new Error("phishTankCheck is not defined");
+  return phishTankCheck("https://example", set.ptAppKey || "");
+}
+const checkMap = { vt: runVT, gsb: runGSB, pt: runPT };
 browser.runtime.onStartup?.addListener(loadMode);
 browser.runtime.onInstalled?.addListener(loadMode);
 loadMode();
@@ -75,13 +95,6 @@ async function runCheckPT(tab, settings) {
   }
   return runCheck_PhishTank(tab, settings);
 }
-
-// モード→関数のマップ（gsb に統一）
-const checkMap = {
-  vt:  runCheckVT,
-  gsb: runCheckGSB,
-  pt:  runCheckPT,
-};
 
 // メイン実行
 async function handleCheck(tab) {
