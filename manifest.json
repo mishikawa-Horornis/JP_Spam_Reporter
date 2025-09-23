@@ -26,9 +26,9 @@
     "scripts": [
       "utils/auth.js",
       "utils/url.js",
-      "riskCheck.js",
       "urlSanitize.js",
       "urlCheck.js",
+      "riskCheck.js",
       "background.js"
     ]
   },
