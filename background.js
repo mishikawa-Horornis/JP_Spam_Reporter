@@ -252,6 +252,7 @@ async function handleCheck(tab) {
 
     const s = out.summary || { total: 0 };
     await notify(`チェック完了：危険 ${s.malicious||0} / 疑い ${s.suspicious||0} / 安全 ${s.harmless||0} / 不明 ${s.unknown||0}（計 ${s.total}）`);
+    await createReportDraftFromResult({ urls, summary: out.summary, settings: { vtApiKey, gsbApiKey, ptAppKey, toAntiPhishing, toDekyo, attachEml }, tab });
 
   } catch (e) {
     console.error(e);
@@ -276,3 +277,69 @@ browser.menus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== "jp-check-report") return;
   handleCheck(tab).catch(console.error);
 });
+// === report helpers ===
+
+// 下書き本文（テキスト）を作る
+function buildReportBody({ urls, summary }) {
+  const s = summary || {};
+  return [
+    "以下のURLを含むメールを報告します。",
+    "",
+    "検出結果:",
+    `  危険: ${s.malicious || 0}`,
+    `  疑い: ${s.suspicious || 0}`,
+    `  安全: ${s.harmless || 0}`,
+    `  不明: ${s.unknown || 0}`,
+    "",
+    "URL一覧:",
+    ...(urls && urls.length ? urls : ["(URL なし)"]),
+    "",
+    "※ 本メールは Thunderbird 拡張 JP Mail Check Extension で作成されました。"
+  ].join("\n");
+}
+
+// 表示中メッセージの .eml を File 化（添付用）
+async function makeEmlAttachment(msgId) {
+  try {
+    const raw = await browser.messages.getRaw(msgId);            // 要 permissions: messagesRead
+    const blob = new Blob([raw], { type: "message/rfc822" });
+    return new File([blob], "original.eml", { type: "message/rfc822" });
+  } catch (e) {
+    console.error("makeEmlAttachment failed", e);
+    return null;
+  }
+}
+
+// 下書きを開く（compose.beginNew）
+async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
+  const attachments = [];
+  if (attachEml && msgId) {
+    const f = await makeEmlAttachment(msgId);
+    if (f) attachments.push(f);
+  }
+  await browser.compose.beginNew({                          // 要 permissions: compose
+    to: [to1, to2].filter(Boolean),
+    subject: "[報告] フィッシング/迷惑メールの可能性あり",
+    body,
+    attachments
+  });
+}
+
+async function createReportDraftFromResult({ urls, summary, settings, tab }) {
+  const { toAntiPhishing, toDekyo, attachEml } = settings || {};
+  // 表示中メッセージ
+  let msgId = null;
+  try {
+    const m = await browser.messageDisplay.getDisplayedMessage(tab?.id);
+    msgId = m?.id ?? null;
+  } catch {}
+
+  const body = buildReportBody({ urls, summary });
+  await openReportDraft({
+    to1: toAntiPhishing || "info@antiphishing.jp",
+    to2: toDekyo || "meiwaku@dekyo.or.jp",
+    body,
+    attachEml: attachEml !== false,   // 既定: 添付する
+    msgId
+  });
+}
