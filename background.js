@@ -307,15 +307,65 @@ function buildReportBody({ urls, summary }) {
   ].join("\n");
 }
 
-// 置換：.eml を Blob で作る
+// beginNew の戻り値を “必ず数値 tabId” に正規化するヘルパ
+function normalizeComposeTabId(ret) {
+  if (typeof ret === "number") return ret;
+  if (ret && typeof ret.id === "number") return ret.id;
+  if (ret && typeof ret.tabId === "number") return ret.tabId;
+  throw new Error("compose.beginNew returned unexpected value");
+}
+
+// .eml を File で作成
 async function makeEmlFile(msgId) {
   const raw = await browser.messages.getRaw(msgId);
   return new File([raw], "original.eml", { type: "message/rfc822" });
 }
 
-// 置換：下書き作成（先に beginNew → その後 addAttachment）
+// 添付（フォールバック込み／tabId 正規化版）
+async function addEmlAttachmentRobust(composeBeginRet, msgId) {
+  const tabId = normalizeComposeTabId(composeBeginRet);
+  const file = await makeEmlFile(msgId);
+
+  // 1) { file, name, contentType }
+  try {
+    await browser.compose.addAttachment(tabId, {
+      file,
+      name: file.name,
+      contentType: file.type || "message/rfc822",
+    });
+    return true;
+  } catch (e1) {
+    console.warn("addAttachment variant#1 failed:", e1);
+  }
+
+  // 2) File をそのまま
+  try {
+    await browser.compose.addAttachment(tabId, file);
+    return true;
+  } catch (e2) {
+    console.warn("addAttachment variant#2 failed:", e2);
+  }
+
+  // 3) Blob URL
+  try {
+    const url = URL.createObjectURL(file);
+    await browser.compose.addAttachment(tabId, {
+      url,
+      name: file.name,
+      contentType: file.type || "message/rfc822",
+    });
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  } catch (e3) {
+    console.warn("addAttachment variant#3 failed:", e3);
+  }
+
+  return false;
+}
+
+// 下書き作成（tabId 正規化を適用）
 async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
-  const composeTabId = await browser.compose.beginNew({
+  const composeBeginRet = await browser.compose.beginNew({
     to: [to1, to2].filter(Boolean),
     subject: "[報告] フィッシング/迷惑メールの可能性あり",
     body,
@@ -323,10 +373,8 @@ async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
 
   if (attachEml && msgId) {
     try {
-      const ok = await addEmlAttachmentRobust(composeTabId, msgId);
-      if (!ok) {
-        await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
-      }
+      const ok = await addEmlAttachmentRobust(composeBeginRet, msgId);
+      if (!ok) await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
     } catch (e) {
       console.error("addAttachment failed (all variants):", e);
       await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
