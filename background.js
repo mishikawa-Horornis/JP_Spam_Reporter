@@ -307,29 +307,27 @@ function buildReportBody({ urls, summary }) {
   ].join("\n");
 }
 
-// 旧: makeEmlAttachment → 新: makeEmlBlob
+// 置換：.eml を Blob で作る
 async function makeEmlBlob(msgId) {
-  const raw = await browser.messages.getRaw(msgId);
+  const raw = await browser.messages.getRaw(msgId); // requires messagesRead
   return new Blob([raw], { type: "message/rfc822" });
 }
 
-// 下書きを開く（compose.beginNew）
+// 置換：下書き作成（先に beginNew → その後 addAttachment）
 async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
-  // ① 先に下書きを開く（tabId が返る）
   const composeTabId = await browser.compose.beginNew({
     to: [to1, to2].filter(Boolean),
     subject: "[報告] フィッシング/迷惑メールの可能性あり",
     body
   });
 
-  // ② 添付（任意）: addAttachment で Blob を渡す
   if (attachEml && msgId) {
     try {
       const blob = await makeEmlBlob(msgId);
       await browser.compose.addAttachment(composeTabId, {
-        file: blob,                       // ← File ではなく Blob
+        file: blob,               // ← File ではなく Blob
         name: "original.eml",
-        contentType: "message/rfc822"
+        contentType: "message/rfc822",
       });
     } catch (e) {
       console.error("addAttachment failed:", e);
