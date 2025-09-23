@@ -153,75 +153,147 @@ async function extractUrlsFromMail(tab) {
   }
   return Array.from(urls);
 }
+// ===== 並列キュー（同時実行数を制限） =====
+async function withConcurrency(items, limit, worker, onProgress) {
+  const results = new Array(items.length);
+  let inFlight = 0, next = 0, done = 0;
 
-// ---- チェック実装（存在確認つきラッパ）----
+  return await new Promise((resolve) => {
+    const launch = () => {
+      while (inFlight < limit && next < items.length) {
+        const idx = next++, it = items[idx];
+        inFlight++;
+        Promise.resolve(worker(it, idx))
+          .then((r) => { results[idx] = r; })
+          .catch((e) => { results[idx] = { error: e?.message || String(e) }; })
+          .finally(() => {
+            inFlight--; done++; if (onProgress) onProgress(done, items.length);
+            if (done === items.length) resolve(results);
+            else launch();
+          });
+      }
+    };
+    if (items.length === 0) resolve([]);
+    else launch();
+  });
+}
+
+// ===== 1 走査内だけの結果キャッシュ（重複URLを即時参照） =====
+const scanCache = {
+  vt:  new Map(),  // url -> { verdict, details }
+  pt:  new Map(),
+  gsb: new Map(),  // url -> "malicious" | "suspicious" | "harmless" | "unknown"
+};
+
+// 進捗を時々だけ表示（過剰通知を防ぐ）
+function makeProgressReporter(prefix) {
+  let last = 0;
+  return async (done, total) => {
+    const now = Date.now();
+    if (done === total || now - last > 1200) {
+      last = now;
+      await setTitle(`${prefix}… ${done}/${total}`, undefined);
+    }
+  };
+}
+
+// === VT：同時4本で実行、失敗は unknown として集計 ===
 async function runVT(urls, apiKey) {
   if (!apiKey) { await notify("VirusTotal API Key が未設定です。"); return { summary: { total: 0 } }; }
   if (typeof vtCheckUrl !== "function") throw new Error("vtCheckUrl is not defined");
 
-  let res = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
-  for (const u of urls) {
-    try {
-      const r = await vtCheckUrl(apiKey, u);  // urlCheck.js
-      res.total++;
-      if (r?.verdict === "malicious") res.malicious++;
-      else if (r?.verdict === "suspicious") res.suspicious++;
-      else if (r?.verdict === "harmless") res.harmless++;
-      else res.unknown++;
-    } catch (e) {
-      console.error("VT error", u, e);
-      res.total++;
-      res.unknown++;
-    }
+  const uniq = Array.from(new Set(urls));
+  const uncached = uniq.filter(u => !scanCache.vt.has(u));
+  const prog = makeProgressReporter("VT スキャン");
+
+  // 同時4本で処理
+  const resList = await withConcurrency(
+    uncached,
+    4,
+    async (u) => {
+      try { const r = await vtCheckUrl(apiKey, u); scanCache.vt.set(u, r); return r; }
+      catch (e) { scanCache.vt.set(u, { verdict: "unknown", details: { error: e?.message } }); return scanCache.vt.get(u); }
+    },
+    prog
+  );
+
+  // 集計（キャッシュ＋今回分）
+  let summary = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
+  for (const u of uniq) {
+    const r = scanCache.vt.get(u);
+    summary.total++;
+    if (r?.verdict === "malicious") summary.malicious++;
+    else if (r?.verdict === "suspicious") summary.suspicious++;
+    else if (r?.verdict === "harmless") summary.harmless++;
+    else summary.unknown++;
   }
-  return { summary: res };
+  return { summary, details: Object.fromEntries(uniq.map(u => [u, scanCache.vt.get(u)])) };
 }
 
+// === GSB：API が “複数URLまとめ” を受ける想定なのでチャンク分割で高速化 ===
 async function runGSB(urls, apiKey) {
   if (!apiKey) { await notify("Google Safe Browsing API Key が未設定です。"); return { summary: { total: 0 } }; }
   if (typeof gsbCheckBatch !== "function") throw new Error("gsbCheckBatch is not defined");
 
-  let map;
-  try {
-    map = await gsbCheckBatch(urls, apiKey); // エラー時はthrowされる実装に
-  } catch (e) {
-    console.error("GSB error", e);
-    await notify("GSBエラー: " + (e.message || e));
-    // ここで即returnして “全部unknown” にしない
-    return { summary: { total: 0 } };
+  const uniq = Array.from(new Set(urls));
+  const uncached = uniq.filter(u => !scanCache.gsb.has(u));
+  const CHUNK = 30;                           // まとめ送信のチャンクサイズ
+  const prog = makeProgressReporter("GSB 照会");
+
+  for (let i = 0; i < uncached.length; i += CHUNK) {
+    const chunk = uncached.slice(i, i + CHUNK);
+    try {
+      const map = await gsbCheckBatch(chunk, apiKey);   // riskCheck.js（複数URL引数）
+      for (const u of chunk) scanCache.gsb.set(u, map[u] || "unknown");
+    } catch (e) {
+      console.error("GSB chunk error:", e);
+      for (const u of chunk) scanCache.gsb.set(u, "unknown");
+    }
+    await prog(Math.min(i + CHUNK, uncached.length), uncached.length);
   }
 
-  let res = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
-  for (const u of urls) {
-    const v = map[u] || "unknown";
-    res.total++;
-    if (v === "malicious") res.malicious++;
-    else if (v === "suspicious") res.suspicious++;
-    else if (v === "harmless") res.harmless++;
-    else res.unknown++;
+  let summary = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
+  const details = {};
+  for (const u of uniq) {
+    const v = scanCache.gsb.get(u) || "unknown";
+    details[u] = v;
+    summary.total++;
+    if (v === "malicious") summary.malicious++;
+    else if (v === "suspicious") summary.suspicious++;
+    else if (v === "harmless") summary.harmless++;
+    else summary.unknown++;
   }
-  return { summary: res, details: map };
+  return { summary, details };
 }
 
+// === PhishTank：同時6本で実行（無料APIは応答が遅いこと多い） ===
 async function runPT(urls, appKey) {
   if (typeof phishTankCheck !== "function") throw new Error("phishTankCheck is not defined");
 
-  let res = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
-  for (const u of urls) {
-    try {
-      const v = await phishTankCheck(u, appKey || ""); // riskCheck.js
-      res.total++;
-      if (v === "malicious") res.malicious++;
-      else if (v === "suspicious") res.suspicious++;
-      else if (v === "harmless") res.harmless++;
-      else res.unknown++;
-    } catch (e) {
-      console.error("PT error", u, e);
-      res.total++;
-      res.unknown++;
-    }
+  const uniq = Array.from(new Set(urls));
+  const uncached = uniq.filter(u => !scanCache.pt.has(u));
+  const prog = makeProgressReporter("PT 照会");
+
+  await withConcurrency(
+    uncached,
+    6,
+    async (u) => {
+      try { const v = await phishTankCheck(u, appKey || ""); scanCache.pt.set(u, v); }
+      catch (e) { console.warn("PT err:", e); scanCache.pt.set(u, "unknown"); }
+    },
+    prog
+  );
+
+  let summary = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
+  for (const u of uniq) {
+    const v = scanCache.pt.get(u) || "unknown";
+    summary.total++;
+    if (v === "malicious") summary.malicious++;
+    else if (v === "suspicious") summary.suspicious++;
+    else if (v === "harmless") summary.harmless++;
+    else summary.unknown++;
   }
-  return { summary: res };
+  return { summary, details: Object.fromEntries(uniq.map(u => [u, scanCache.pt.get(u)])) };
 }
 
 // ---- 実行本体 ----
