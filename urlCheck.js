@@ -1,5 +1,10 @@
 globalThis.vtCheckUrl = async function (apiKey, url) {
-  // urlCheck.js の POST 部分
+const cleaned = sanitizeUrl(targetUrl);
+if (!cleaned) {
+  await notify("無効なURLのため VT 送信をスキップしました。");
+  return { verdict: "unknown", details: { reason: "invalid-url" } };
+}
+const r = await vtCheckUrl(vtApiKey, cleaned);  // urlCheck.js の POST 部分
   const res = await fetch("https://www.virustotal.com/api/v3/urls", {
     method: "POST",
     headers: {

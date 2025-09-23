@@ -28,6 +28,7 @@
       "utils/url.js",
       "riskCheck.js",
       "urlCheck.js",
+      "urlSanitize.js",
       "background.js"
     ]
   },
