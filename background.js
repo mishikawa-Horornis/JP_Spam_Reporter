@@ -231,9 +231,10 @@ async function handleCheck(tab) {
 
   try {
     await loadMode();
-    const { vtApiKey, gsbApiKey, ptAppKey } = await loadSettings();
-
+    const settings = await loadSettings();
+    const { vtApiKey, gsbApiKey, ptAppKey, toAntiPhishing, toDekyo, attachEml } = settings;
     const urls = await extractUrlsFromMail(tab);
+
     if (!urls.length) {
       await notify("メール内にURLが見つかりませんでした。");
       return;
@@ -252,15 +253,20 @@ async function handleCheck(tab) {
 
     const s = out.summary || { total: 0 };
     await notify(`チェック完了：危険 ${s.malicious||0} / 疑い ${s.suspicious||0} / 安全 ${s.harmless||0} / 不明 ${s.unknown||0}（計 ${s.total}）`);
-  
+
+    // ★ 下書き作成：try の中で、変数が生きているうちに呼ぶ
+    await createReportDraftFromResult({
+      urls,
+      summary: out.summary,
+      settings: { toAntiPhishing, toDekyo, attachEml },
+      tab
+    });  
   } catch (e) {
     console.error(e);
     await notify("エラー: " + (e.message || e));
   } finally {
     await setTitle("Check & Report", tabId);
   }
-  await createReportDraftFromResult({ urls, summary: out.summary, settings: { vtApiKey, gsbApiKey, ptAppKey, toAntiPhishing, toDekyo, attachEml }, tab });
-
 }
 
 // ---- UI ハンドラ ----
