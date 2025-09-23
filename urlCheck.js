@@ -1,10 +1,10 @@
 globalThis.vtCheckUrl = async function (apiKey, url) {
-const cleaned = sanitizeUrl(targetUrl);
-if (!cleaned) {
-  await notify("無効なURLのため VT 送信をスキップしました。");
-  return { verdict: "unknown", details: { reason: "invalid-url" } };
-}
-const r = await vtCheckUrl(vtApiKey, cleaned);  // urlCheck.js の POST 部分
+  const cleaned = sanitizeUrl(targetUrl);
+  if (!cleaned) {
+    await notify("無効なURLのため VT 送信をスキップしました。");
+    return { verdict: "unknown", details: { reason: "invalid-url" } };
+  }
+  const r = await vtCheckUrl(vtApiKey, cleaned);
   const res = await fetch("https://www.virustotal.com/api/v3/urls", {
     method: "POST",
     headers: {
@@ -12,18 +12,8 @@ const r = await vtCheckUrl(vtApiKey, cleaned);  // urlCheck.js の POST 部分
       "content-type": "application/x-www-form-urlencoded",
       "accept": "application/json"
     },
-    body: new URLSearchParams({ url })
+    body: new URLSearchParams({ url })    // ← ここは JSON ではなく form
   });
-
-  if (!res.ok) {
-    let msg = `VT analyze failed: ${res.status}`;
-    try {
-      const j = await res.json();
-      const m = j?.error?.message || j?.error?.code || j?.message;
-      if (m) msg += ` – ${m}`;
-    } catch {}
-    throw new Error(msg);
-  }
   if (!res.ok) throw new Error("VT analyze failed: " + res.status);
   const { data } = await res.json();
   const id = data.id;
