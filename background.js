@@ -308,9 +308,9 @@ function buildReportBody({ urls, summary }) {
 }
 
 // 置換：.eml を Blob で作る
-async function makeEmlBlob(msgId) {
-  const raw = await browser.messages.getRaw(msgId); // requires messagesRead
-  return new Blob([raw], { type: "message/rfc822" });
+async function makeEmlFile(msgId) {
+  const raw = await browser.messages.getRaw(msgId);
+  return new File([raw], "original.eml", { type: "message/rfc822" });
 }
 
 // 置換：下書き作成（先に beginNew → その後 addAttachment）
@@ -318,19 +318,17 @@ async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
   const composeTabId = await browser.compose.beginNew({
     to: [to1, to2].filter(Boolean),
     subject: "[報告] フィッシング/迷惑メールの可能性あり",
-    body
+    body,
   });
 
   if (attachEml && msgId) {
     try {
-      const blob = await makeEmlBlob(msgId);
-      await browser.compose.addAttachment(composeTabId, {
-        file: blob,               // ← File ではなく Blob
-        name: "original.eml",
-        contentType: "message/rfc822",
-      });
+      const ok = await addEmlAttachmentRobust(composeTabId, msgId);
+      if (!ok) {
+        await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
+      }
     } catch (e) {
-      console.error("addAttachment failed:", e);
+      console.error("addAttachment failed (all variants):", e);
       await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
     }
   }
@@ -353,4 +351,44 @@ async function createReportDraftFromResult({ urls, summary, settings, tab }) {
     attachEml: attachEml !== false,   // 既定: 添付する
     msgId
   });
+}
+async function addEmlAttachmentRobust(composeTabId, msgId) {
+  const file = await makeEmlFile(msgId);
+
+  // 1) { file: File, ... }
+  try {
+    await browser.compose.addAttachment(composeTabId, {
+      file,
+      name: file.name,
+      contentType: file.type || "message/rfc822",
+    });
+    return true;
+  } catch (e1) {
+    console.warn("addAttachment variant#1 failed:", e1);
+  }
+
+  // 2) File だけ
+  try {
+    await browser.compose.addAttachment(composeTabId, file);
+    return true;
+  } catch (e2) {
+    console.warn("addAttachment variant#2 failed:", e2);
+  }
+
+  // 3) Blob URL
+  try {
+    const url = URL.createObjectURL(file);
+    await browser.compose.addAttachment(composeTabId, {
+      url,
+      name: file.name,
+      contentType: file.type || "message/rfc822",
+    });
+    // 片付け（compose側が読み終えたあとでOKだが、念のため遅延解放）
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  } catch (e3) {
+    console.warn("addAttachment variant#3 failed:", e3);
+  }
+
+  return false;
 }
