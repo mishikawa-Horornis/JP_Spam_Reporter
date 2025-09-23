@@ -260,11 +260,13 @@ async function handleCheck(tab) {
       summary: out.summary,
       settings: { toAntiPhishing, toDekyo, attachEml },
       tab
-    });  
+    });
+
   } catch (e) {
     console.error(e);
     await notify("エラー: " + (e.message || e));
   } finally {
+    // 例外の有無にかかわらず戻す
     await setTitle("Check & Report", tabId);
   }
 }
@@ -305,31 +307,35 @@ function buildReportBody({ urls, summary }) {
   ].join("\n");
 }
 
-// 表示中メッセージの .eml を File 化（添付用）
-async function makeEmlAttachment(msgId) {
-  try {
-    const raw = await browser.messages.getRaw(msgId);            // 要 permissions: messagesRead
-    const blob = new Blob([raw], { type: "message/rfc822" });
-    return new File([blob], "original.eml", { type: "message/rfc822" });
-  } catch (e) {
-    console.error("makeEmlAttachment failed", e);
-    return null;
-  }
+// 旧: makeEmlAttachment → 新: makeEmlBlob
+async function makeEmlBlob(msgId) {
+  const raw = await browser.messages.getRaw(msgId);
+  return new Blob([raw], { type: "message/rfc822" });
 }
 
 // 下書きを開く（compose.beginNew）
 async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
-  const attachments = [];
-  if (attachEml && msgId) {
-    const f = await makeEmlAttachment(msgId);
-    if (f) attachments.push(f);
-  }
-  await browser.compose.beginNew({                          // 要 permissions: compose
+  // ① 先に下書きを開く（tabId が返る）
+  const composeTabId = await browser.compose.beginNew({
     to: [to1, to2].filter(Boolean),
     subject: "[報告] フィッシング/迷惑メールの可能性あり",
-    body,
-    attachments
+    body
   });
+
+  // ② 添付（任意）: addAttachment で Blob を渡す
+  if (attachEml && msgId) {
+    try {
+      const blob = await makeEmlBlob(msgId);
+      await browser.compose.addAttachment(composeTabId, {
+        file: blob,                       // ← File ではなく Blob
+        name: "original.eml",
+        contentType: "message/rfc822"
+      });
+    } catch (e) {
+      console.error("addAttachment failed:", e);
+      await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
+    }
+  }
 }
 
 async function createReportDraftFromResult({ urls, summary, settings, tab }) {
