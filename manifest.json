@@ -27,8 +27,8 @@
       "utils/auth.js",
       "utils/url.js",
       "riskCheck.js",
-      "urlCheck.js",
       "urlSanitize.js",
+      "urlCheck.js",
       "background.js"
     ]
   },
