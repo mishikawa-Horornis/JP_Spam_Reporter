@@ -181,8 +181,16 @@ async function runGSB(urls, apiKey) {
   if (!apiKey) { await notify("Google Safe Browsing API Key が未設定です。"); return { summary: { total: 0 } }; }
   if (typeof gsbCheckBatch !== "function") throw new Error("gsbCheckBatch is not defined");
 
-  const map = await gsbCheckBatch(urls, apiKey);   // riskCheck.js
-  // map は { url: 'malicious' | 'suspicious' | 'harmless' | 'unknown' } を想定
+  let map;
+  try {
+    map = await gsbCheckBatch(urls, apiKey); // エラー時はthrowされる実装に
+  } catch (e) {
+    console.error("GSB error", e);
+    await notify("GSBエラー: " + (e.message || e));
+    // ここで即returnして “全部unknown” にしない
+    return { summary: { total: 0 } };
+  }
+
   let res = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
   for (const u of urls) {
     const v = map[u] || "unknown";
