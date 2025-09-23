@@ -307,7 +307,7 @@ function buildReportBody({ urls, summary }) {
   ].join("\n");
 }
 
-// beginNew の戻り値を数値 tabId に正規化（そのまま流用）
+// ① beginNew戻り値 → 数値tabIdに正規化
 function normalizeComposeTabId(ret) {
   if (typeof ret === "number") return ret;
   if (ret && typeof ret.id === "number") return ret.id;
@@ -315,33 +315,50 @@ function normalizeComposeTabId(ret) {
   throw new Error("compose.beginNew returned unexpected value");
 }
 
-async function makeEmlDataUrl(msgId) {
-  const raw = await browser.messages.getRaw(msgId); // 要 messagesRead
-  const base64 = btoa(unescape(encodeURIComponent(raw)));
-  return `data:message/rfc822;base64,${base64}`;
+// ② .eml を File として作成
+async function makeEmlFile(msgId) {
+  const raw = await browser.messages.getRaw(msgId); // requires messagesRead
+  return new File([raw], "original.eml", { type: "message/rfc822" });
 }
 
-async function addEmlAttachment(composeBeginRet, msgId) {
-  const tabId = normalizeComposeTabId(composeBeginRet);
-  const url = await makeEmlDataUrl(msgId);
-  await browser.compose.addAttachment(tabId, {
-    url,
-    name: "original.eml",
-    contentType: "message/rfc822",
-  });
+// ③ 添付（File / {file: File} の順で試す）
+async function addEmlAttachment(tabRet, msgId) {
+  const tabId = normalizeComposeTabId(tabRet);
+  const file  = await makeEmlFile(msgId);
+
+  // 少し待つと安定するTBがある
+  await new Promise(r => setTimeout(r, 50));
+
+  // a) File をそのまま
+  try {
+    await browser.compose.addAttachment(tabId, file);
+    return true;
+  } catch (e1) {
+    console.warn("addAttachment(File) failed:", e1);
+  }
+
+  // b) {file: File}
+  try {
+    await browser.compose.addAttachment(tabId, { file }); // ← 他プロパティは付けない
+    return true;
+  } catch (e2) {
+    console.warn("addAttachment({file}) failed:", e2);
+  }
+
+  return false;
 }
 
+// ④ 下書き作成側（beginNew → addAttachment）
 async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
   const ret = await browser.compose.beginNew({
     to: [to1, to2].filter(Boolean),
     subject: "[報告] フィッシング/迷惑メールの可能性あり",
     body,
   });
+
   if (attachEml && msgId) {
-    try {
-      await addEmlAttachment(ret, msgId);
-    } catch (e) {
-      console.error("addAttachment (dataURL) failed:", e);
+    const ok = await addEmlAttachment(ret, msgId);
+    if (!ok) {
       await notify("注意: .eml の添付に失敗しました（本文は作成済み）");
     }
   }
@@ -364,44 +381,6 @@ async function createReportDraftFromResult({ urls, summary, settings, tab }) {
     attachEml: attachEml !== false,   // 既定: 添付する
     msgId
   });
-}
-async function addEmlAttachmentRobust(composeTabId, msgId) {
-  const file = await makeEmlFile(msgId);
-
-  // 1) { file: File, ... }
-  try {
-    await browser.compose.addAttachment(composeTabId, {
-      file,
-      name: file.name,
-      contentType: file.type || "message/rfc822",
-    });
-    return true;
-  } catch (e1) {
-    console.warn("addAttachment variant#1 failed:", e1);
-  }
-
-  // 2) File だけ
-  try {
-    await browser.compose.addAttachment(composeTabId, file);
-    return true;
-  } catch (e2) {
-    console.warn("addAttachment variant#2 failed:", e2);
-  }
-
-  // 3) Blob URL
-  try {
-    const url = URL.createObjectURL(file);
-    await browser.compose.addAttachment(composeTabId, {
-      url,
-      name: file.name,
-      contentType: file.type || "message/rfc822",
-    });
-    // 片付け（compose側が読み終えたあとでOKだが、念のため遅延解放）
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return true;
-  } catch (e3) {
-    console.warn("addAttachment variant#3 failed:", e3);
-  }
 
   return false;
 }
