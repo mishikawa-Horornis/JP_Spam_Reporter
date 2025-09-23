@@ -315,65 +315,20 @@ function normalizeComposeTabId(ret) {
   throw new Error("compose.beginNew returned unexpected value");
 }
 
-// .eml の data:URL を作る（UTF-8 → base64）
 async function makeEmlDataUrl(msgId) {
-  const raw = await browser.messages.getRaw(msgId);
-  // base64化（Unicode 安全）
+  const raw = await browser.messages.getRaw(msgId); // 要 messagesRead
   const base64 = btoa(unescape(encodeURIComponent(raw)));
   return `data:message/rfc822;base64,${base64}`;
 }
 
-// ★ 添付は data:URL 1本に統一（File/Blob を使わない）
 async function addEmlAttachment(composeBeginRet, msgId) {
   const tabId = normalizeComposeTabId(composeBeginRet);
   const url = await makeEmlDataUrl(msgId);
   await browser.compose.addAttachment(tabId, {
-    url,                         // ← data: URL を渡す
+    url,
     name: "original.eml",
     contentType: "message/rfc822",
   });
-}
-
-// 添付（フォールバック込み／tabId 正規化版）
-async function addEmlAttachmentRobust(composeBeginRet, msgId) {
-  const tabId = normalizeComposeTabId(composeBeginRet);
-  const file = await makeEmlFile(msgId);
-
-  // 1) { file, name, contentType }
-  try {
-    await browser.compose.addAttachment(tabId, {
-      file,
-      name: file.name,
-      contentType: file.type || "message/rfc822",
-    });
-    return true;
-  } catch (e1) {
-    console.warn("addAttachment variant#1 failed:", e1);
-  }
-
-  // 2) File をそのまま
-  try {
-    await browser.compose.addAttachment(tabId, file);
-    return true;
-  } catch (e2) {
-    console.warn("addAttachment variant#2 failed:", e2);
-  }
-
-  // 3) Blob URL
-  try {
-    const url = URL.createObjectURL(file);
-    await browser.compose.addAttachment(tabId, {
-      url,
-      name: file.name,
-      contentType: file.type || "message/rfc822",
-    });
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    return true;
-  } catch (e3) {
-    console.warn("addAttachment variant#3 failed:", e3);
-  }
-
-  return false;
 }
 
 async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
@@ -382,7 +337,6 @@ async function openReportDraft({ to1, to2, body, attachEml, msgId }) {
     subject: "[報告] フィッシング/迷惑メールの可能性あり",
     body,
   });
-
   if (attachEml && msgId) {
     try {
       await addEmlAttachment(ret, msgId);
