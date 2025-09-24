@@ -124,11 +124,6 @@
       <label><input id="attachEml" type="checkbox" checked /> 元メール（.eml）を添付する（推奨）</label>
     </fieldset>
 
-    <div class="actions">
-      <button id="save" type="submit">保存</button>
-      <button id="reset" type="button">デフォルトに戻す</button>
-      <span id="status" class="hint"></span>
-    </div>
     <!-- 許可リスト -->
     <h3>許可ドメイン（ホワイトリスト）</h3>
     <p class="help">
@@ -142,6 +137,11 @@
     safe.trusted.jp // ここもコメント
     </pre>
     <textarea id="allowlistDomains" rows="6" style="width:100%;"></textarea>
+    <div class="actions">
+      <button id="save" type="submit">保存</button>
+      <button id="reset" type="button">デフォルトに戻す</button>
+      <span id="status" class="hint"></span>
+    </div>
   </form>
   <!-- 保存ステータス（どこかフッター付近に） -->
   <div id="saveStatus" aria-live="polite" style="
