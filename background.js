@@ -248,11 +248,13 @@ async function runVT(urls, apiKey) {
   // 集計（キャッシュ＋今回分）
   let summary = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
   for (const u of uniq) {
-    const r = scanCache.vt.get(u);
+    const v0 = scanCache.gsb.get(u);           // "listed" / "clean" / undefined
+    const v  = normalizeVerdict(v0);           // -> malicious / harmless / unknown
+    details[u] = v;
     summary.total++;
-    if (r?.verdict === "malicious") summary.malicious++;
-    else if (r?.verdict === "suspicious") summary.suspicious++;
-    else if (r?.verdict === "harmless") summary.harmless++;
+    if (v === "malicious") summary.malicious++;
+    else if (v === "suspicious") summary.suspicious++;
+    else if (v === "harmless") summary.harmless++;
     else summary.unknown++;
   }
   return { summary, details: Object.fromEntries(uniq.map(u => [u, scanCache.vt.get(u)])) };
@@ -314,7 +316,7 @@ async function runPT(urls, appKey) {
 
   let summary = { malicious: 0, suspicious: 0, harmless: 0, unknown: 0, total: 0 };
   for (const u of uniq) {
-    const v = scanCache.pt.get(u) || "unknown";
+    const v = normalizeVerdict(scanCache.pt.get(u) || "unknown");
     summary.total++;
     if (v === "malicious") summary.malicious++;
     else if (v === "suspicious") summary.suspicious++;
@@ -542,4 +544,12 @@ async function stopActionSpinner(finalTitle = "Check & Report") {
   _spin.timer = null;
   if (_spin.tabId != null) await _setActionTitle(finalTitle, _spin.tabId);
   _spin.tabId = null;
+}
+function normalizeVerdict(v) {
+  const s = (typeof v === "string" ? v : v?.verdict || "").toLowerCase();
+  if (!s) return "unknown";
+  if (s === "listed" || s === "malware" || s === "phishing" || s === "malicious") return "malicious";
+  if (s === "clean" || s === "harmless" || s === "safe") return "harmless";
+  if (s === "suspicious" || s === "gray" || s === "grayware") return "suspicious";
+  return "unknown";
 }
