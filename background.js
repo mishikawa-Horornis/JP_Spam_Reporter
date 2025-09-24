@@ -218,9 +218,9 @@ function makeProgressReporter(prefix) {
   let last = 0;
   return async (done, total) => {
     const now = Date.now();
-    if (done === total || now - last > 1200) {
+    if (done === total || now - last > 700) {   // 更新しすぎ防止
       last = now;
-      await setTitle(`${prefix}… ${done}/${total}`, undefined);
+      setActionSpinnerPrefix(`${prefix} ${done}/${total}`);
     }
   };
 }
@@ -327,7 +327,7 @@ async function runPT(urls, appKey) {
 // ---- 実行本体 ----
 async function handleCheck(tab) {
   const tabId = tab?.id;
-  await setTitle("Scanning…", tabId);
+  await startActionSpinner(tabId, "Scanning");
 
   try {
     await loadMode();
@@ -390,7 +390,7 @@ async function handleCheck(tab) {
     await notify("エラー: " + (e.message || e));
   } finally {
     // 例外の有無にかかわらず戻す
-    await setTitle("Check & Report", tabId);
+    await stopActionSpinner("Check & Report");
   }
 }
 
@@ -506,4 +506,40 @@ async function createReportDraftFromResult({ urls, summary, settings, tab }) {
   });
 
   return false;
+}
+// ===== Action タイトル用スピナー =====
+const _spin = {
+  timer: null,
+  tabId: null,
+  frames: ["-", "\\", "|", "/"],
+  i: 0,
+  prefix: "Scanning"
+};
+
+async function _setActionTitle(title, tabId) {
+  try { await browser.messageDisplayAction.setTitle({ title, tabId }); } catch {}
+}
+
+export async function startActionSpinner(tabId, prefix = "Scanning") {
+  await stopActionSpinner();              // 二重起動ガード
+  _spin.tabId = tabId;
+  _spin.prefix = prefix;
+  _spin.i = 0;
+  _spin.timer = setInterval(() => {
+    const f = _spin.frames[_spin.i++ % _spin.frames.length];
+    _setActionTitle(`${_spin.prefix} ${f}`, _spin.tabId);
+  }, 120); // dnfっぽくクルクル
+  // すぐ1フレーム表示
+  _setActionTitle(`${_spin.prefix} ${_spin.frames[0]}`, _spin.tabId);
+}
+
+export function setActionSpinnerPrefix(prefix) {
+  if (_spin.timer) _spin.prefix = prefix;
+}
+
+export async function stopActionSpinner(finalTitle = "Check & Report") {
+  if (_spin.timer) clearInterval(_spin.timer);
+  _spin.timer = null;
+  if (_spin.tabId != null) await _setActionTitle(finalTitle, _spin.tabId);
+  _spin.tabId = null;
 }
