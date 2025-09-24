@@ -354,7 +354,11 @@ async function handleCheck(tab) {
   try {
     await loadMode();
     const settings = await loadSettings();
-    const { vtApiKey, gsbApiKey, ptAppKey, toAntiPhishing, toDekyo, attachEml } = settings;
+    console.log("[JP Mail Check] mode=", currentCheck,
+      "VT=", settings.vtApiKey ? `set(${settings.vtApiKey.length})` : "unset",
+      "GSB=", settings.gsbApiKey ? `set(${settings.gsbApiKey.length})` : "unset",
+      "PT=", settings.ptAppKey ? `set(${settings.ptAppKey.length})` : "unset"
+    );
     const urls = await extractUrlsFromMail(tab);
 
     if (!urls.length) {
