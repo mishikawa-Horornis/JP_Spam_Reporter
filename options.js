@@ -195,3 +195,29 @@ document.addEventListener("DOMContentLoaded", () => {
     showStatus("デフォルトに戻しました", "ok");
   });
 });
+// options.js 末尾あたりに置き換え
+
+function on(id, type, handler) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener(type, handler);
+  return !!el;
+}
+
+async function initOptions() {
+  try { await loadOptions(); } catch(e){ console.error(e); }
+
+  // 保存ボタン（id="save" でも "saveBtn" でもOK）
+  const bindSave =
+    on("save", "click", (e)=>{ e.preventDefault(); saveOptions(); }) ||
+    on("saveBtn", "click", (e)=>{ e.preventDefault(); saveOptions(); });
+
+  // リセット（あれば）
+  on("reset", "click", async (e)=>{
+    e.preventDefault();
+    // 必要なら既定値を書き戻す処理をここに
+    showStatus?.("デフォルトに戻しました", "ok");
+  });
+}
+
+// DOMができてから実行
+document.addEventListener("DOMContentLoaded", initOptions);
