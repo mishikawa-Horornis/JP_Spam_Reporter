@@ -129,6 +129,19 @@
       <button id="reset" type="button">デフォルトに戻す</button>
       <span id="status" class="hint"></span>
     </div>
+    <!-- 許可リスト -->
+    <h3>許可ドメイン（ホワイトリスト）</h3>
+    <p class="help">
+      1行に1件。例: <code>example.com</code> / <code>*.trusted.jp</code> / <code>.mozilla.org</code><br>
+      行末に <code>#</code> または <code>//</code> を書くとコメントとして無視されます。<br>
+      例:
+    </p>
+    <pre class="help">
+    # この行はコメント
+    example.com # ここもコメント
+    safe.trusted.jp // ここもコメント
+    </pre>
+    <textarea id="allowlistDomains" rows="6" style="width:100%;"></textarea>
   </form>
 
   <script src="options.js"></script>

@@ -4,8 +4,11 @@ const DEFAULTS = {
   vtApiKey: "",
   gsbApiKey: "",
   ptAppKey: "",
+  vtApiKey: "", gsbApiKey: "", ptAppKey: "",
   toAntiPhishing: "info@antiphishing.jp",
   toDekyo: "meiwaku@dekyo.or.jp",
+  minSuspiciousToReport: 2,
+  allowlistDomains: [],
   attachEml: true,
 };
 
@@ -61,3 +64,68 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => (s.textContent = ""), 1500);
   });
 });
+function hostFrom(u){ try { return new URL(u).host.replace(/^www\./,''); } catch { return "";} }
+
+// 許可ルール：
+//  - "example.com" / ".example.com" / "*.example.com" → 末尾一致（サブドメイン含む）
+//  - "https://safe.example.com/path" → そのURLでプレフィックス一致（始まりが同じなら許可）
+//  - "/正規表現/" 形式は正規表現マッチ（任意）
+function isAllowlisted(url, rules) {
+  const h = hostFrom(url);
+  for (const raw of rules || []) {
+    const s = String(raw).trim();
+    if (!s) continue;
+
+    // 正規表現 /.../
+    if (s.startsWith("/") && s.endsWith("/") && s.length > 2) {
+      try { if (new RegExp(s.slice(1, -1)).test(url)) return true; } catch {}
+      continue;
+    }
+
+    // 完全 URL → プレフィックス一致
+    if (/^https?:\/\//i.test(s)) {
+      if (url.startsWith(s)) return true;
+      continue;
+    }
+
+    // ドメイン指定
+    const d = s.replace(/^\*\.\s*/,"").replace(/^\./,"").toLowerCase();
+    if (!d) continue;
+    const hd = h.toLowerCase();
+    if (hd === d || hd.endsWith("." + d)) return true;
+  }
+  return false;
+}
+
+function parseAllowlist(text) {
+  return text
+    .split(/\r?\n/)                    // 行ごとに分割
+    .map(line => {
+      // 行末の # または // コメントを削除
+      let s = line.replace(/\s+#.*$/, '').replace(/\s+\/\/.*$/, '');
+      return s.trim();
+    })
+    .filter(s => s.length > 0);        // 空行は除外
+}
+
+async function loadOptions() {
+  const st = await browser.storage.local.get({
+    allowlistDomains: [],
+    minSuspiciousToReport: 2,
+  });
+  document.getElementById("allowlistDomains").value = (st.allowlistDomains || []).join("\n");
+  document.getElementById("minSuspiciousToReport").value = st.minSuspiciousToReport ?? 2;
+}
+
+async function saveOptions() {
+  const allow = parseAllowlist(document.getElementById("allowlistDomains").value);
+  const minS = Math.max(1, parseInt(document.getElementById("minSuspiciousToReport").value || "2", 10));
+  await browser.storage.local.set({
+    allowlistDomains: allow,
+    minSuspiciousToReport: minS,
+  });
+  alert("保存しました");
+}
+
+document.getElementById("saveBtn").addEventListener("click", saveOptions);
+document.addEventListener("DOMContentLoaded", loadOptions);

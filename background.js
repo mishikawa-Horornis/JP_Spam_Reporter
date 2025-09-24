@@ -42,14 +42,35 @@ browser.storage.onChanged.addListener((chg, area) => {
 
 async function loadSettings() {
   // 旧キー名にも一応対応（vtKey/gsbKey/ptKey があれば拾う）
-  const st = await browser.storage.local.get(null);
   const vtApiKey  = st.vtApiKey  ?? st.vtKey  ?? "";
   const gsbApiKey = st.gsbApiKey ?? st.gsbKey ?? "";
   const ptAppKey  = st.ptAppKey  ?? st.ptKey  ?? "";
   const toAntiPhishing = st.toAntiPhishing || "info@antiphishing.jp";
   const toDekyo        = st.toDekyo        || "meiwaku@dekyo.or.jp";
   const attachEml      = st.attachEml !== false;
-  return { vtApiKey, gsbApiKey, ptAppKey, toAntiPhishing, toDekyo, attachEml };
+  const defaults = {
+    vtApiKey: "", gsbApiKey: "", ptAppKey: "",
+    toAntiPhishing: "info@antiphishing.jp",
+    toDekyo: "meiwaku@dekyo.or.jp",
+    attachEml: true,
+    minSuspiciousToReport: 2,              // ★ 追加: 疑いが何件からレポートするか
+    allowlistDomains: [                    // ★ 追加: 誤検知しやすい正常ドメイン例
+      "google.com", "youtu.be", "youtube.com",
+      "github.com", "mozilla.org", "thunderbird.net",
+      "dropbox.com", "box.com",
+      "bit.ly", "t.co"                     // 短縮は残す/外すはお好みで
+    ]
+  };
+  const st = await browser.storage.local.get(defaults);
+  return { ...defaults, ...st };
+}
+
+function hostFrom(u){
+  try { return new URL(u).host.replace(/^www\./, ""); } catch { return ""; }
+}
+function isAllowlisted(url, allowlist) {
+  const h = hostFrom(url);
+  return !!allowlist.find(d => h === d || h.endsWith("." + d));
 }
 
 // ---- URL サニタイズ ----
@@ -323,17 +344,42 @@ async function handleCheck(tab) {
       out = await runPT(urls, ptAppKey);
     }
 
-    const s = out.summary || { total: 0 };
-    await notify(`チェック完了：危険 ${s.malicious||0} / 疑い ${s.suspicious||0} / 安全 ${s.harmless||0} / 不明 ${s.unknown||0}（計 ${s.total}）`);
+    const { summary, details } = await runScan(urls, mode, apiKeys);
 
-    // ★ 下書き作成：try の中で、変数が生きているうちに呼ぶ
-    await createReportDraftFromResult({
-      urls,
-      summary: out.summary,
-      settings: { toAntiPhishing, toDekyo, attachEml },
-      tab
-    });
+    const s = out.summary || { malicious:0, suspicious:0, harmless:0, unknown:0, total:0 };
 
+    // s = out.summary, details = out.details がある前提
+    let suspiciousOther = 0, suspiciousAllowed = 0;
+    if (out.details) {
+      for (const [u, v] of Object.entries(out.details)) {
+        const verdict = typeof v === "string" ? v : (v?.verdict || "unknown");
+        if (verdict === "suspicious") {
+          if (isAllowlisted(u, settings.allowlistDomains)) suspiciousAllowed++;
+          else suspiciousOther++;
+        }
+      }
+    } else {
+      // detailsを返さない実装の保険
+      suspiciousOther = s.suspicious;
+    }
+
+    const needReport =
+      (s.malicious > 0) ||
+      (suspiciousOther >= (settings.minSuspiciousToReport ?? 2));
+
+    if (needReport) {
+      const body = buildReportBody({ urls, summary: s });
+      await openReportDraft({
+        to1: settings.toAntiPhishing,
+        to2: settings.toDekyo,
+        body,
+        attachEml: settings.attachEml !== false,
+        msgId: (await browser.messageDisplay.getDisplayedMessage(tab?.id))?.id || null
+      });
+      await notify(`危険:${s.malicious} / 疑い(許可外):${suspiciousOther} → 下書きを作成しました`);
+    } else {
+      await notify(`危険なし。疑い(許可外):${suspiciousOther} / 許可内:${suspiciousAllowed} / 安全:${s.harmless} / 不明:${s.unknown}`);
+    }
   } catch (e) {
     console.error(e);
     await notify("エラー: " + (e.message || e));
