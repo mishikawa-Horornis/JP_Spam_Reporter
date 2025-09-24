@@ -276,6 +276,76 @@ async function runVT(urls, apiKey) {
 
   return { summary, details: detailsMap };
 }
+
+// === GSB：API が “複数URLまとめ” を受ける想定なのでチャンク分割で高速化 ===
+async function runGSB(urls, apiKey) {
+  if (!apiKey) { await notify("Google Safe Browsing API Key が未設定です。"); return { summary: { total: 0 } }; }
+  if (typeof gsbCheckBatch !== "function") throw new Error("gsbCheckBatch is not defined");
+
+  const uniq = Array.from(new Set(urls));
+  const uncached = uniq.filter(u => !scanCache.gsb.has(u));
+  const CHUNK = 30;                           // まとめ送信のチャンクサイズ
+  const prog = makeProgressReporter("GSB 照会");
+
+  for (let i = 0; i < uncached.length; i += CHUNK) {
+    const chunk = uncached.slice(i, i + CHUNK);
+    try {
+      const map = await gsbCheckBatch(chunk, apiKey);   // riskCheck.js（複数URL引数）
+      for (const u of chunk) scanCache.gsb.set(u, map[u] || "unknown");
+    } catch (e) {
+      console.error("GSB chunk error:", e);
+      for (const u of chunk) scanCache.gsb.set(u, "unknown");
+    }
+    await prog(Math.min(i + CHUNK, uncached.length), uncached.length);
+  }
+
+  const summary = { malicious:0, suspicious:0, harmless:0, unknown:0, total:0 };
+  const detailsMap = {};
+  for (const u of uniq) {
+    const v0 = scanCache.gsb.get(u);           // "listed" / "clean" / undefined
+    const v  = normalizeVerdict(v0);           // -> malicious/harmless/unknown
+    detailsMap[u] = v;
+    summary.total++;
+    if (v === "malicious") summary.malicious++;
+    else if (v === "suspicious") summary.suspicious++;
+    else if (v === "harmless") summary.harmless++;
+    else summary.unknown++;
+  }
+  return { summary, details: detailsMap };
+}
+
+// === PhishTank：同時6本で実行（無料APIは応答が遅いこと多い） ===
+async function runPT(urls, appKey) {
+  if (typeof phishTankCheck !== "function") throw new Error("phishTankCheck is not defined");
+
+  const uniq = Array.from(new Set(urls));
+  const uncached = uniq.filter(u => !scanCache.pt.has(u));
+  const prog = makeProgressReporter("PT 照会");
+
+  await withConcurrency(
+    uncached,
+    6,
+    async (u) => {
+      try { const v = await phishTankCheck(u, appKey || ""); scanCache.pt.set(u, v); }
+      catch (e) { console.warn("PT err:", e); scanCache.pt.set(u, "unknown"); }
+    },
+    prog
+  );
+
+  const summary = { malicious:0, suspicious:0, harmless:0, unknown:0, total:0 };
+  const detailsMap = {};
+  for (const u of uniq) {
+    const v  = normalizeVerdict(scanCache.pt.get(u) || "unknown");
+    detailsMap[u] = v;
+    summary.total++;
+    if (v === "malicious") summary.malicious++;
+    else if (v === "suspicious") summary.suspicious++;
+    else if (v === "harmless") summary.harmless++;
+    else summary.unknown++;
+  }
+  return { summary, details: detailsMap };
+}
+
 // ---- 実行本体 ----
 async function handleCheck(tab) {
   const tabId = tab?.id;
@@ -494,4 +564,12 @@ async function stopActionSpinner(finalTitle = "Check & Report") {
   _spin.timer = null;
   if (_spin.tabId != null) await _setActionTitle(finalTitle, _spin.tabId);
   _spin.tabId = null;
+}
+function normalizeVerdict(v) {
+  const s = (typeof v === "string" ? v : v?.verdict || "").toLowerCase();
+  if (!s) return "unknown";
+  if (s === "listed" || s === "malware" || s === "phishing" || s === "malicious") return "malicious";
+  if (s === "clean" || s === "harmless" || s === "safe") return "harmless";
+  if (s === "suspicious" || s === "gray" || s === "grayware") return "suspicious";
+  return "unknown";
 }
