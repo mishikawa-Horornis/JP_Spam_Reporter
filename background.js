@@ -520,7 +520,7 @@ async function _setActionTitle(title, tabId) {
   try { await browser.messageDisplayAction.setTitle({ title, tabId }); } catch {}
 }
 
-export async function startActionSpinner(tabId, prefix = "Scanning") {
+async function startActionSpinner(tabId, prefix = "Scanning") {
   await stopActionSpinner();              // 二重起動ガード
   _spin.tabId = tabId;
   _spin.prefix = prefix;
@@ -528,16 +528,16 @@ export async function startActionSpinner(tabId, prefix = "Scanning") {
   _spin.timer = setInterval(() => {
     const f = _spin.frames[_spin.i++ % _spin.frames.length];
     _setActionTitle(`${_spin.prefix} ${f}`, _spin.tabId);
-  }, 120); // dnfっぽくクルクル
+  }, 120);
   // すぐ1フレーム表示
   _setActionTitle(`${_spin.prefix} ${_spin.frames[0]}`, _spin.tabId);
 }
 
-export function setActionSpinnerPrefix(prefix) {
+function setActionSpinnerPrefix(prefix) {
   if (_spin.timer) _spin.prefix = prefix;
 }
 
-export async function stopActionSpinner(finalTitle = "Check & Report") {
+async function stopActionSpinner(finalTitle = "Check & Report") {
   if (_spin.timer) clearInterval(_spin.timer);
   _spin.timer = null;
   if (_spin.tabId != null) await _setActionTitle(finalTitle, _spin.tabId);
