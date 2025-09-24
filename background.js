@@ -41,28 +41,35 @@ browser.storage.onChanged.addListener((chg, area) => {
 });
 
 async function loadSettings() {
-  // 旧キー名にも一応対応（vtKey/gsbKey/ptKey があれば拾う）
-  const vtApiKey  = st.vtApiKey  ?? st.vtKey  ?? "";
-  const gsbApiKey = st.gsbApiKey ?? st.gsbKey ?? "";
-  const ptAppKey  = st.ptAppKey  ?? st.ptKey  ?? "";
-  const toAntiPhishing = st.toAntiPhishing || "info@antiphishing.jp";
-  const toDekyo        = st.toDekyo        || "meiwaku@dekyo.or.jp";
-  const attachEml      = st.attachEml !== false;
+  // 既定値
   const defaults = {
     vtApiKey: "", gsbApiKey: "", ptAppKey: "",
     toAntiPhishing: "info@antiphishing.jp",
     toDekyo: "meiwaku@dekyo.or.jp",
     attachEml: true,
-    minSuspiciousToReport: 2,              // ★ 追加: 疑いが何件からレポートするか
-    allowlistDomains: [                    // ★ 追加: 誤検知しやすい正常ドメイン例
+    minSuspiciousToReport: 2,
+    allowlistDomains: [
       "google.com", "youtu.be", "youtube.com",
       "github.com", "mozilla.org", "thunderbird.net",
-      "dropbox.com", "box.com",
-      "bit.ly", "t.co"                     // 短縮は残す/外すはお好みで
-    ]
+      "dropbox.com", "box.com", "bit.ly", "t.co"
+    ],
+    // 旧キー（存在すれば拾う用）
+    vtKey: "", gsbKey: "", ptKey: "",
   };
+
+  // まず取得
   const st = await browser.storage.local.get(defaults);
-  return { ...defaults, ...st };
+
+  // マージ＋旧キーのフォールバック
+  const merged = { ...defaults, ...st };
+  if (!merged.vtApiKey  && merged.vtKey)  merged.vtApiKey  = merged.vtKey;
+  if (!merged.gsbApiKey && merged.gsbKey) merged.gsbApiKey = merged.gsbKey;
+  if (!merged.ptAppKey  && merged.ptKey)  merged.ptAppKey  = merged.ptKey;
+
+  // ブール正規化
+  merged.attachEml = merged.attachEml !== false;
+
+  return merged;
 }
 
 function hostFrom(u){
@@ -343,9 +350,7 @@ async function handleCheck(tab) {
     } else {
       out = await runPT(urls, ptAppKey);
     }
-
-    const { summary, details } = await runScan(urls, mode, apiKeys);
-
+    
     const s = out.summary || { malicious:0, suspicious:0, harmless:0, unknown:0, total:0 };
 
     // s = out.summary, details = out.details がある前提

@@ -129,3 +129,69 @@ async function saveOptions() {
 
 document.getElementById("saveBtn").addEventListener("click", saveOptions);
 document.addEventListener("DOMContentLoaded", loadOptions);
+
+// 既存の load/save 処理に足すユーティリティ
+function showStatus(text, type = "info") {
+  const el = document.getElementById("saveStatus");
+  el.textContent = text;
+  el.style.display = "block";
+  el.style.borderColor = type === "error" ? "#e35d5d" : "#58a55c";
+  el.style.background = type === "error" ? "rgba(227,93,93,.10)" : "rgba(88,165,92,.10)";
+  el.style.color = type === "error" ? "#e35d5d" : "inherit";
+  clearTimeout(showStatus._t);
+  showStatus._t = setTimeout(() => { el.style.display = "none"; }, 1800);
+}
+
+async function saveOptions() {
+  const saveBtn = document.getElementById("save");
+  try {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "保存中…";
+
+    const allow = parseAllowlist(document.getElementById("allowlistDomains")?.value || "");
+    const minS  = document.getElementById("minSuspiciousToReport") ? 
+                  Math.max(1, parseInt(document.getElementById("minSuspiciousToReport").value || "2", 10)) : 2;
+
+    const data = {
+      checkMode: document.querySelector('input[name="checkMode"]:checked')?.value || "vt",
+      vtApiKey:  document.getElementById("vtApiKey")?.value || "",
+      gsbApiKey: document.getElementById("gsbApiKey")?.value || "",
+      ptAppKey:  document.getElementById("ptAppKey")?.value || "",
+      toAntiPhishing: document.getElementById("toAntiPhishing")?.value || "info@antiphishing.jp",
+      toDekyo:        document.getElementById("toDekyo")?.value || "meiwaku@dekyo.or.jp",
+      attachEml:      !!document.getElementById("attachEml")?.checked,
+      allowlistDomains: allow,
+      minSuspiciousToReport: minS,
+    };
+
+    await browser.storage.local.set(data);
+    showStatus("保存しました ✅", "ok");
+  } catch (e) {
+    console.error(e);
+    showStatus("保存に失敗しました…", "error");
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "保存";
+  }
+}
+
+function parseAllowlist(text) {
+  return (text || "")
+    .split(/\r?\n/)
+    .map(line => line.replace(/\s+#.*$/, '').replace(/\s+\/\/.*$/, '').trim())
+    .filter(Boolean);
+}
+
+// 起動時の読み込み（既存の load() に統合してOK）
+document.addEventListener("DOMContentLoaded", () => {
+  // 既存の load() を呼んだ後でイベントを設定
+  document.getElementById("save")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    saveOptions();
+  });
+  document.getElementById("reset")?.addEventListener("click", async (e) => {
+    e.preventDefault();
+    // 既定値に戻すあなたの処理…
+    showStatus("デフォルトに戻しました", "ok");
+  });
+});
