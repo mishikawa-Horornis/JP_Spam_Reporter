@@ -7,6 +7,7 @@ const DEFAULT_MODE = "vt";                              // "vt" | "gsb" | "pt"
 const STORAGE_KEY  = "checkMode";
 const VALID_MODES  = new Set(["vt", "gsb", "pt"]);
 let currentCheck   = DEFAULT_MODE;
+const scanningTabs = new Set();  // いまスキャン中の tabId を保持
 
 function notify(message) {
   return browser.notifications.create({
@@ -349,9 +350,16 @@ async function runPT(urls, appKey) {
 // ---- 実行本体 ----
 async function handleCheck(tab) {
   const tabId = tab?.id;
-  await startActionSpinner(tabId, "Scanning");
-
+  if (tabId != null && scanningTabs.has(tabId)) {
+    await notify("いまスキャン中です…");
+    return;
+  }
+  // ここからスキャン開始としてマーク
+  if (tabId != null) scanningTabs.add(tabId);
   try {
+    // ボタンを「無効化」＆スピナー開始（dnf風）
+    try { await browser.messageDisplayAction.disable({ tabId }); } catch {}
+    await startActionSpinner(tabId, "Scanning");
     await loadMode();
     const settings = await loadSettings();
     console.log("[JP Mail Check] mode=", currentCheck,
@@ -416,14 +424,21 @@ async function handleCheck(tab) {
     console.error(e);
     await notify("エラー: " + (e.message || e));
   } finally {
-    // 例外の有無にかかわらず戻す
+    // スピナー停止・ボタン復帰・連打ガード解除
     await stopActionSpinner("Check & Report");
+    try { await browser.messageDisplayAction.enable({ tabId }); } catch {}
+    if (tabId != null) scanningTabs.delete(tabId);
   }
 }
 
 // ---- UI ハンドラ ----
-browser.messageDisplayAction.onClicked.addListener((tab) => {
-  handleCheck(tab).catch(console.error);
+browser.messageDisplayAction.onClicked.addListener(async (tab) => {
+  const tabId = tab?.id;
+  if (tabId != null && scanningTabs.has(tabId)) {
+    await notify("いまスキャン中です…");
+    return;
+  }
+  await handleCheck(tab);
 });
 
 // ツールメニュー（任意）
