@@ -440,12 +440,7 @@ browser.messageDisplayAction.onClicked.addListener(async (tab) => {
     return;
   }
   await handleCheck(tab);
-  if (tabId != null && scanningTabs.has(tabId)) {
-    try { await notify("いまスキャン中です…"); } catch {}
-    return;
-  }
-  await handleCheck(tab);
-
+  
 });
 
 // ツールメニュー（任意）
