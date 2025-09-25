@@ -8,6 +8,12 @@
       "strict_min_version": "102.0"
     }
   },
+  "icons": {
+    "16": "icons/jp-spam-reporter-16.png",
+    "32": "icons/jp-spam-reporter-32.png",
+    "48": "icons/jp-spam-reporter-48.png",
+    "128": "icons/jp-spam-reporter-128.png"
+  },
   "description": "Check URLs in a message and prepare a report email with .eml attachment for Japanese abuse desks.",
   "permissions": [
     "messagesRead",
@@ -36,7 +42,8 @@
     "default_title": "Check & Report",
     "default_icon": {
       "16": "icons/jp-spam-reporter-16.png",
-      "32": "icons/jp-spam-reporter-32.png"
+      "32": "icons/jp-spam-reporter-32.png",
+      "48": "icons/jp-spam-reporter-48.png"
     }
   },
   "options_ui": { "page": "options.html", "open_in_tab": true }
