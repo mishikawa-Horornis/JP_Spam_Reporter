@@ -211,23 +211,6 @@ function parseAllowlist(text) {
     .filter(Boolean);
 }
 
-/*
-// 起動時の読み込み（既存の load() に統合してOK）
-document.addEventListener("DOMContentLoaded", () => {
-  // 既存の load() を呼んだ後でイベントを設定
-  document.getElementById("save")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    saveOptions();
-  });
-  document.getElementById("reset")?.addEventListener("click", async (e) => {
-    e.preventDefault();
-    // 既定値に戻すあなたの処理…
-    showStatus("デフォルトに戻しました", "ok");
-  });
-});
-*/
-// options.js 末尾あたりに置き換え
-
 function on(id, type, handler) {
   const el = document.getElementById(id);
   if (el) el.addEventListener(type, handler);
@@ -235,18 +218,26 @@ function on(id, type, handler) {
 }
 
 async function initOptions() {
-  try { await loadOptions(); } catch(e){ console.error(e); }
+  try {
+    await loadOptions();
+  } catch (e) {
+    console.error("Load error:", e);
+  }
 
-  // 保存ボタン（id="save" でも "saveBtn" でもOK）
-  const bindSave =
-    on("save", "click", (e)=>{ e.preventDefault(); saveOptions(); });
-    // リセット（あれば）
-    on("reset", "click", async (e)=>{
+  // 保存ボタン
+  on("save", "click", (e) => {
     e.preventDefault();
-    // 必要なら既定値を書き戻す処理をここに
-    showStatus?.("デフォルトに戻しました", "ok");
+    saveOptions();
+  });
+
+  // リセットボタン
+  on("reset", "click", async (e) => {
+    e.preventDefault();
+    await browser.storage.local.set(DEFAULTS);
+    await loadOptions();
+    showStatus("デフォルトに戻しました", "ok");
   });
 }
 
-// DOMができてから実行
+// DOM が構築されたら初期化
 document.addEventListener("DOMContentLoaded", initOptions);
