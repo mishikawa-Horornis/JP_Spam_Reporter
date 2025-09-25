@@ -7,7 +7,7 @@ const DEFAULT_MODE = "vt";                              // "vt" | "gsb" | "pt"
 const STORAGE_KEY  = "checkMode";
 const VALID_MODES  = new Set(["vt", "gsb", "pt"]);
 let currentCheck   = DEFAULT_MODE;
-const scanningTabs = new Set();  // いまスキャン中の tabId を保持
+const scanningTabs = new Set();
 
 function notify(message) {
   return browser.notifications.create({
@@ -371,7 +371,7 @@ async function handleCheck(tab) {
 
     if (!urls.length) {
       await notify("メール内にURLが見つかりませんでした。");
-      return;
+      return; // finally で復帰処理されます
     }
 
     await notify(`チェック開始（${currentCheck}）：対象 ${urls.length} 件`);
@@ -424,7 +424,7 @@ async function handleCheck(tab) {
     console.error(e);
     await notify("エラー: " + (e.message || e));
   } finally {
-    // スピナー停止・ボタン復帰・連打ガード解除
+    // スピナー停止・ボタン復帰・ガード解除（必ず実行）
     await stopActionSpinner("Check & Report");
     try { await browser.messageDisplayAction.enable({ tabId }); } catch {}
     if (tabId != null) scanningTabs.delete(tabId);
@@ -434,8 +434,20 @@ async function handleCheck(tab) {
 // ---- UI ハンドラ ----
 browser.messageDisplayAction.onClicked.addListener(async (tab) => {
   const tabId = tab?.id;
+  // 連打ガード（早期）
   if (tabId != null && scanningTabs.has(tabId)) {
-    await notify("いまスキャン中です…");
+    try { await notify("いまスキャン中です…"); } catch {}
+    return;
+  }
+  if (tabId != null) scanningTabs.add(tabId);
+
+  // ボタン無効化＋スピナー開始（最初に必ず実行）
+  try { await browser.messageDisplayAction.disable({ tabId }); } catch {}
+  await startActionSpinner(tabId, "Scanning");
+
+  if (tabId != null && scanningTabs.has(tabId)) {
+    // 既にスキャン中なら無視（軽く通知）
+    try { await notify("いまスキャン中です…"); } catch {}
     return;
   }
   await handleCheck(tab);
