@@ -434,23 +434,18 @@ async function handleCheck(tab) {
 // ---- UI ハンドラ ----
 browser.messageDisplayAction.onClicked.addListener(async (tab) => {
   const tabId = tab?.id;
-  // 連打ガード（早期）
-  if (tabId != null && scanningTabs.has(tabId)) {
-    try { await notify("いまスキャン中です…"); } catch {}
-    return;
-  }
-  if (tabId != null) scanningTabs.add(tabId);
-
-  // ボタン無効化＋スピナー開始（最初に必ず実行）
-  try { await browser.messageDisplayAction.disable({ tabId }); } catch {}
-  await startActionSpinner(tabId, "Scanning");
-
   if (tabId != null && scanningTabs.has(tabId)) {
     // 既にスキャン中なら無視（軽く通知）
     try { await notify("いまスキャン中です…"); } catch {}
     return;
   }
   await handleCheck(tab);
+  if (tabId != null && scanningTabs.has(tabId)) {
+    try { await notify("いまスキャン中です…"); } catch {}
+    return;
+  }
+  await handleCheck(tab);
+
 });
 
 // ツールメニュー（任意）
