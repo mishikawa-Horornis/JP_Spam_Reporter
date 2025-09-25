@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // urlSanitize.js などに置いて、背景で読み込み（manifest の background.scripts に追加）
 function sanitizeUrl(raw) {
   if (!raw) return "";

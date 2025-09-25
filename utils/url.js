@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // ===== 短縮URL展開ユーティリティ =====
 // 使い方: const finalUrl = await expandUrl(url);
 

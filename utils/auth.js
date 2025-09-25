@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // utils/auth.js
 // Authentication-Results をざっくり解析して {spf, dkim, dmarc} を返す簡易版
 (function (global) {

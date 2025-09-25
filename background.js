@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // =========================
 // JP Mail Check – background
 // =========================

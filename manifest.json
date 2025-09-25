@@ -1,10 +1,10 @@
 {
   "manifest_version": 2,
   "name": "JP Spam Reporter",
-  "version": "1.0.15",
+  "version": "2.0.0",
   "applications": {
     "gecko": {
-      "id": "jp-spam-reporter@example.local",
+      "id": "jp-spam-reporter@magical-soft.jp",
       "strict_min_version": "102.0"
     }
   },
@@ -47,4 +47,4 @@
     }
   },
   "options_ui": { "page": "options.html", "open_in_tab": true }
-  }
+}

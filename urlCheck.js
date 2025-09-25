@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // urlCheck.js
 // 追加：URLをVTのurl_idにするヘルパ
 function vtUrlId(raw) {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 // options.js — 単一実装クリーン版
 
 // 取得ユーティリティ
