@@ -368,6 +368,8 @@ async function handleCheck(tab) {
 
     await notify(`チェック開始（${currentCheck}）：対象 ${urls.length} 件`);
 
+    const { vtApiKey, gsbApiKey, ptAppKey } = settings;   // ★ここで取り出す
+
     let out;
     if (currentCheck === "vt") {
       out = await runVT(urls, vtApiKey);
@@ -376,7 +378,6 @@ async function handleCheck(tab) {
     } else {
       out = await runPT(urls, ptAppKey);
     }
-    
     const s = out.summary || { malicious:0, suspicious:0, harmless:0, unknown:0, total:0 };
 
     // s = out.summary, details = out.details がある前提
