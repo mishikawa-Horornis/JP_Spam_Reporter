@@ -1,65 +1,99 @@
-// options.js
-window.addEventListener("DOMContentLoaded", () => void initOptions());
+// SPDX-License-Identifier: MIT
+// options.js — 単一実装クリーン版
 
-async function initOptions() {
-  const $ = (id) => document.getElementById(id);
+// 取得ユーティリティ
+function $id(id){ const el=document.getElementById(id); if(!el) console.warn("[options] missing id:",id); return el; }
+function $v(id){ return ($id(id)?.value ?? "").trim(); }
+function $checked(id){ return !!$id(id)?.checked; }
 
-  // このスクリプトが誤って background 上で評価された場合に備えてガード
-  if (!$("#vtApiKey")) return;
+// 既定値（background.js と整合）
+const DEFAULTS = {
+  checkMode: "vt",
+  vtApiKey: "", gsbApiKey: "", ptAppKey: "",
+  toAntiPhishing: "info@antiphishing.jp",
+  toDekyo: "meiwaku@dekyo.or.jp",
+  attachEml: true,
+  minSuspiciousToReport: 2,
+  allowlistDomains: [],
+};
 
-  // Promise ベースに統一（Thunderbird で chrome.storage がコールバック式でもOK）
-  const storage = (typeof browser !== "undefined" && browser.storage)
-    ? browser.storage
-    : {
-        local: {
-          get: (keys) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.get(keys, (v) => resolve(v || {})); }
-            catch (e) { reject(e); }
-          }),
-          set: (obj) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.set(obj, () => resolve()); }
-            catch (e) { reject(e); }
-          }),
-        },
-      };
-
-  // 既存値を読み込み（未設定は既定値）
-  let saved = {};
-  try {
-    saved = await storage.local.get([
-      "vtApiKey", "gsbApiKey", "ptAppKey", "toAntiPhishing", "toDekyo", "attachEml"
-    ]);
-  } catch (e) {
-    console.error("[options] storage.get error:", e);
-    $("#status").textContent = "設定の読み込みに失敗しました";
-  }
-
-  $("#vtApiKey").value       = saved.vtApiKey ?? "";
-  $("#gsbApiKey").value      = saved.gsbApiKey ?? "";
-  $("#ptAppKey").value       = saved.ptAppKey ?? "";                      // ←空でもOK
-  $("#toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
-  $("#toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp";
-  $("#attachEml").checked    = (saved.attachEml ?? true);
-
-  // 保存
-  $("#save").addEventListener("click", async () => {
-    const payload = {
-      vtApiKey: $("#vtApiKey").value.trim(),
-      gsbApiKey: $("#gsbApiKey").value.trim(),
-      ptAppKey:  $("#ptAppKey").value.trim(),             // ←空文字も保存
-      toAntiPhishing: $("#toAntiPhishing").value.trim(),
-      toDekyo: $("#toDekyo").value.trim(),
-      attachEml: $("#attachEml").checked,
-    };
-    try {
-      await storage.local.set(payload);
-      $("#status").textContent = "保存しました";
-      console.log("[options] saved:", payload);
-    } catch (e) {
-      console.error("[options] storage.set error:", e);
-      $("#status").textContent = "保存に失敗しました";
-    } finally {
-      setTimeout(() => $("#status").textContent = "", 2000);
-    }
-  });
+// 行末コメント対応の許可リストパーサ
+function parseAllowlist(text){
+  return (text||"")
+    .split(/\r?\n/)
+    .map(l => l.replace(/\s+#.*$/,"").replace(/\s+\/\/.*$/,"").trim())
+    .filter(Boolean);
 }
+
+// 画面へ反映
+async function loadOptions(){
+  const st = await browser.storage.local.get(DEFAULTS);
+
+  // ラジオ（チェック方式）
+  const r = document.querySelector(`input[name="checkMode"][value="${st.checkMode}"]`);
+  if (r) r.checked = true;
+
+  // 入力
+  $id("vtApiKey")?.setAttribute("value", st.vtApiKey || "");
+  $id("gsbApiKey")?.setAttribute("value", st.gsbApiKey || "");
+  $id("ptAppKey")?.setAttribute("value", st.ptAppKey || "");
+  if ($id("vtApiKey"))  $id("vtApiKey").value  = st.vtApiKey || "";
+  if ($id("gsbApiKey")) $id("gsbApiKey").value = st.gsbApiKey || "";
+  if ($id("ptAppKey"))  $id("ptAppKey").value  = st.ptAppKey || "";
+
+  if ($id("toAntiPhishing")) $id("toAntiPhishing").value = st.toAntiPhishing || "";
+  if ($id("toDekyo"))        $id("toDekyo").value        = st.toDekyo || "";
+
+  if ($id("attachEml")) $id("attachEml").checked = !!st.attachEml;
+
+  if ($id("allowlistDomains")) $id("allowlistDomains").value = (st.allowlistDomains||[]).join("\n");
+  if ($id("minSuspiciousToReport")) $id("minSuspiciousToReport").value = st.minSuspiciousToReport ?? 2;
+}
+
+// ステータス表示
+function showStatus(text, type="ok"){
+  const el=$id("saveStatus"); if(!el) return;
+  el.textContent=text; el.style.display="block";
+  el.style.borderColor= type==="error" ? "#e35d5d" : "#58a55c";
+  el.style.background= type==="error" ? "rgba(227,93,93,.10)" : "rgba(88,165,92,.10)";
+  el.style.color     = type==="error" ? "#e35d5d" : "inherit";
+  clearTimeout(showStatus._t);
+  showStatus._t=setTimeout(()=>{ el.style.display="none"; },1800);
+}
+
+// 保存
+async function saveOptions(){
+  try{
+    const data = {
+      checkMode: document.querySelector('input[name="checkMode"]:checked')?.value || "vt",
+      vtApiKey:  $v("vtApiKey"),
+      gsbApiKey: $v("gsbApiKey"),
+      ptAppKey:  $v("ptAppKey"),
+      toAntiPhishing: $v("toAntiPhishing"),
+      toDekyo:        $v("toDekyo"),
+      attachEml:      $checked("attachEml"),
+      allowlistDomains: parseAllowlist($v("allowlistDomains")),
+      minSuspiciousToReport: Math.max(1, parseInt($v("minSuspiciousToReport") || "2", 10)),
+    };
+    await browser.storage.local.set({ ...DEFAULTS, ...data }); // キー欠落も既定で補完
+    showStatus("保存しました ✅","ok");
+  }catch(e){
+    console.error(e);
+    showStatus("保存に失敗しました…","error");
+  }
+}
+
+// 初期化：フォーム送信を止めて保存に一本化
+document.addEventListener("DOMContentLoaded", ()=>{
+  // フォーム submit を抑止して click と二重発火しないように
+  $id("form")?.addEventListener("submit",(e)=>{ e.preventDefault(); saveOptions(); });
+  $id("save")?.addEventListener("click",(e)=>{ e.preventDefault(); saveOptions(); });
+  $id("reset")?.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    await browser.storage.local.set(DEFAULTS);
+    await loadOptions();
+    showStatus("デフォルトに戻しました","ok");
+  });
+
+  loadOptions().catch(console.error);
+});

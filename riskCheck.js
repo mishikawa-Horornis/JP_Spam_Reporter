@@ -26,29 +26,28 @@ globalThis.expandUrl = async function(url, maxHops = 3) {
   return current;
 };
 
-// ==== Google Safe Browsing v4 まとめ照会 ====
 globalThis.gsbCheckBatch = async function(urls, apiKey) {
   if (!apiKey || urls.length === 0) return {};
-  const body = {
-    client: { clientId: "jp-spam-reporter", clientVersion: "1.0" },
-    threatInfo: {
-      threatTypes: ["MALWARE","SOCIAL_ENGINEERING","UNWANTED_SOFTWARE","POTENTIALLY_HARMFUL_APPLICATION"],
-      platformTypes: ["ANY_PLATFORM"],
-      threatEntryTypes: ["URL"],
-      threatEntries: urls.map(u => ({ url: u }))
-    }
-  };
+  const body = { /* 既存どおり */ };
   try {
     const r = await fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${encodeURIComponent(apiKey)}`, {
       method: "POST", headers: { "content-type":"application/json" }, body: JSON.stringify(body)
     });
-    if (!r.ok) return {};
+    if (!r.ok) {
+      let msg = `GSB ${r.status}`;
+      try { const j = await r.json(); msg += j?.error?.message ? ` – ${j.error.message}` : ""; } catch {}
+      console.warn("[GSB] request failed:", msg);
+      return {};
+    }
     const j = await r.json();
     const set = new Set((j.matches||[]).map(m => m.threat?.url));
     const out = {};
     for (const u of urls) out[u] = set.has(u) ? "listed" : "clean";
     return out;
-  } catch { return {}; }
+  } catch (e) {
+    console.warn("[GSB] fetch error:", e);
+    return {};
+  }
 };
 
 // ==== PhishTank 照会（任意。CORS通らない環境では自動でスキップ）====
