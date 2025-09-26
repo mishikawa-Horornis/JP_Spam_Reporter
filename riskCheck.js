@@ -28,7 +28,20 @@ globalThis.expandUrl = async function(url, maxHops = 3) {
 
 globalThis.gsbCheckBatch = async function(urls, apiKey) {
   if (!apiKey || urls.length === 0) return {};
-  const body = { /* 既存どおり */ };
+  const body = {
+    client: { clientId: "jp-spam-checker", clientVersion: "2.0.0" },
+    threatInfo: {
+      threatTypes: [
+        "MALWARE",
+        "SOCIAL_ENGINEERING",
+        "UNWANTED_SOFTWARE",
+        "POTENTIALLY_HARMFUL_APPLICATION"
+      ],
+      platformTypes: ["ANY_PLATFORM"],
+      threatEntryTypes: ["URL"],
+      threatEntries: urls.map(u => ({ url: u }))  // まとめて照会
+    }
+  };
   try {
     const r = await fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${encodeURIComponent(apiKey)}`, {
       method: "POST", headers: { "content-type":"application/json" }, body: JSON.stringify(body)
