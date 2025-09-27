@@ -82,6 +82,15 @@
       border-color:var(--btn-border);
     }
 
+    #saveStatus {
+      margin-top: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none; /* JSで表示/非表示を制御 */
+      background: rgba(127,127,127,0.15);
+    }
+
   </style>
 </head>
 <body>
@@ -141,6 +150,7 @@
       <button id="save" type="submit">保存</button>
       <button id="reset" type="button">デフォルトに戻す</button>
       <span id="status" class="hint"></span>
+      <div id="saveStatus" aria-live="polite"></div> <!-- ←ここに移動 -->
     </div>
   </form>
   <!-- 保存ステータス（どこかフッター付近に） -->
