@@ -1,135 +1,226 @@
 // SPDX-License-Identifier: MIT
-// riskCheck.js — GSB/PT の最小実装を**末尾に追記**して、既存実装が壊れていても動くようにする
+// ==== SPF / DKIM / DMARC パース ====
+globalThis.parseAuthResults = function(full) {
+  const headers = (full.headers || []).reduce((m, h) => (m[h.name.toLowerCase()] = h.value, m), {});
+  const ar = (headers["authentication-results"] || "").toLowerCase();
+  const spf   = /spf=(pass|fail|softfail|neutral|temperror|permerror)/.exec(ar)?.[1] || "unknown";
+  const dkim  = /dkim=(pass|fail|none|temperror|permerror)/.exec(ar)?.[1] || "unknown";
+  const dmarc = /dmarc=(pass|fail|bestguesspass|none)/.exec(ar)?.[1] || "unknown";
+  const receivedSpf = /^(pass|fail|softfail|neutral|permerror|temperror)/.exec((headers["received-spf"]||"").toLowerCase())?.[1];
+  return { spf: receivedSpf || spf, dkim, dmarc };
+};
 
+// ==== 短縮URL展開（最大3ホップ）====
+globalThis.expandUrl = async function(url, maxHops = 3) {
+  let current = url;
+  for (let i=0;i<maxHops;i++) {
+    try {
+      const resp = await fetch(current, { redirect: "follow", method: "GET" });
+      const next = resp.url || current;
+      if (next === current) break;
+      current = next;
+    } catch {
+      break;
+    }
+  }
+  return current;
+};
+
+globalThis.gsbCheckBatch = async function(urls, apiKey) {
+  if (!apiKey || urls.length === 0) return {};
+  const body = {
+    client: { clientId: "jp-spam-checker", clientVersion: "2.0.0" },
+    threatInfo: {
+      threatTypes: [
+        "MALWARE",
+        "SOCIAL_ENGINEERING",
+        "UNWANTED_SOFTWARE",
+        "POTENTIALLY_HARMFUL_APPLICATION"
+      ],
+      platformTypes: ["ANY_PLATFORM"],
+      threatEntryTypes: ["URL"],
+      threatEntries: urls.map(u => ({ url: u }))  // まとめて照会
+    }
+  };
+  try {
+    const r = await fetch(`https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST", headers: { "content-type":"application/json" }, body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      let msg = `GSB ${r.status}`;
+      try { const j = await r.json(); msg += j?.error?.message ? ` – ${j.error.message}` : ""; } catch {}
+      console.warn("[GSB] request failed:", msg);
+      return {};
+    }
+    const j = await r.json();
+    const set = new Set((j.matches||[]).map(m => m.threat?.url));
+    const out = {};
+    for (const u of urls) out[u] = set.has(u) ? "listed" : "clean";
+    return out;
+  } catch (e) {
+    console.warn("[GSB] fetch error:", e);
+    return {};
+  }
+};
+// === PhishTank: 診断＆フォールバック強化版 ===
 (function(){
-  // ===== Google Safe Browsing minimal =====
-  const _GSB_ENDPOINT = "https://safebrowsing.googleapis.com/v4/threatMatches:find?key=";
-  const _GSB_CLIENT = { clientId: "jp-spam-checker", clientVersion: "2.0.0" };
+  function _tryParseJson(text){
+    try { return JSON.parse(text); } catch {}
+    // HTML等で返るケースに備え、最初の { ... } を強引に抽出
+    const i = text.indexOf("{"); const j = text.lastIndexOf("}");
+    if (i !== -1 && j !== -1 && j > i) {
+      try { return JSON.parse(text.slice(i, j+1)); } catch {}
+    }
+    return {};
+  }
 
-  async function gsbLookupMinimal(urls, apiKey, { timeoutMs = 10000 } = {}) {
-    if (!apiKey) throw new Error("GSB API key is empty.");
-    const list = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
-    if (list.length === 0) return [];
+  async function _ptPost(url, appKey, abortSignal){
+    const form = new URLSearchParams();
+    form.set("url", url);
+    form.set("format", "json");
+    if (appKey) form.set("app_key", appKey);
+    const res = await fetch("https://checkurl.phishtank.com/checkurl/", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+      signal: abortSignal
+    });
+    const text = await res.text();
+    const json = _tryParseJson(text);
+    const r = json?.results || {};
+    let verdict = "unknown";
+    if (r.in_database === true) {
+      if (r.verified === true && r.valid === true) verdict = "phish";
+      else if (r.verified === true && r.valid === false) verdict = "safe";
+      else verdict = "unknown";
+    }
+    return { verdict, raw: { status: res.status, ct: res.headers.get("content-type")||"", text }, parsed: r };
+  }
 
-    const body = {
-      client: _GSB_CLIENT,
-      threatInfo: {
-        threatTypes: [
-          "MALWARE",
-          "SOCIAL_ENGINEERING",
-          "UNWANTED_SOFTWARE",
-          "POTENTIALLY_HARMFUL_APPLICATION"
-        ],
-        platformTypes: ["ANY_PLATFORM"],
-        threatEntryTypes: ["URL"],
-        threatEntries: list.map(u => ({ url: u }))
-      }
-    };
+  function _flipScheme(u){
+    try{
+      const x = new URL(u);
+      x.protocol = (x.protocol === "https:") ? "http:" : "https:";
+      return x.toString();
+    }catch{ return u; }
+  }
+  function _noQuery(u){
+    try{ const x = new URL(u); x.search=""; return x.toString(); }catch{ return u; }
+  }
+  function _peelPaths(u){
+     const out = [];
+     try{
+       const x = new URL(u);
+       const parts = x.pathname.split("/").filter(Boolean);
+       while(parts.length>0){
+         parts.pop();
+         x.pathname = "/" + parts.join("/") + (parts.length?"/":"");
+         x.search = "";
+         out.push(x.toString());
+       }
+       // ルート
+       x.pathname = "/";
+       out.push(x.toString());
+     }catch{}
+     return out;
+   }
+   function _domainOnly(u){
+     try{ const x = new URL(u); return x.origin + "/"; }catch{ return u; }
+   }
 
+  // 強化版ルックアップ：ステップごとの trace を返す
+  async function ptLookupDiagnose(url, appKey, { timeoutMs = 10000 } = {}){
+    const trace = [];
     const ac = new AbortController();
     const to = setTimeout(() => ac.abort(), timeoutMs);
-    try {
-      const r = await fetch(_GSB_ENDPOINT + encodeURIComponent(apiKey), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: ac.signal
-      });
-      if (!r.ok) {
-        const t = await r.text().catch(() => "");
-        throw new Error(`GSB HTTP ${r.status}: ${t}`);
-      }
-      const j = await r.json().catch(() => ({}));
-      return j?.matches ?? []; // 空配列 = 安全
-    } finally {
-      clearTimeout(to);
-    }
-   }
+    try{
+       const tryOne = async (label, target) => {
+         const r = await _ptPost(target, appKey, ac.signal);
+         trace.push({ step: label, url: target, verdict: r.verdict, sample: {
+           in_database: r.parsed?.in_database, verified: r.parsed?.verified, valid: r.parsed?.valid, phish_id: r.parsed?.phish_id
+         }, http: r.raw.status, ct: r.raw.ct });
+         return r.verdict;
+       };
 
-   // 既存がある場合でも安全に露出
-   if (typeof globalThis.gsbLookupMinimal !== "function") {
-     globalThis.gsbLookupMinimal = gsbLookupMinimal;
-   }
-   if (typeof globalThis.isUrlUnsafeMinimal !== "function") {
-     globalThis.isUrlUnsafeMinimal = async (url, apiKey) => (await gsbLookupMinimal(url, apiKey)).length > 0;
-   }
+       // 1) そのまま
+       let v = await tryOne("as-is", url);
+       if (v !== "unknown") return { verdict: v, trace };
 
-   // ===== PhishTank minimal =====
-   async function ptLookupMinimal(url, appKey, { timeoutMs = 10000 } = {}) {
-     const ac = new AbortController();
-     const to = setTimeout(() => ac.abort(), timeoutMs);
-     try {
-       const form = new URLSearchParams();
-       form.set("url", url);
-       form.set("format", "json");
-       if (appKey) form.set("app_key", appKey);
-
-       const r = await fetch("https://checkurl.phishtank.com/checkurl/", {
-         method: "POST",
-         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-         body: form.toString(),
-         signal: ac.signal
-       });
-       const j = await r.json().catch(() => ({}));
-       const res = j?.results || {};
-       if (res.in_database === true) {
-         if (res.verified === true && res.valid === true) return { verdict: "phish", detail: res };
-         if (res.verified === true && res.valid === false) return { verdict: "safe",  detail: res };
-         return { verdict: "unknown", detail: res };
+       // 2) https⇄http
+       const flipped = _flipScheme(url);
+       if (flipped !== url){
+         v = await tryOne("flip-scheme", flipped);
+         if (v !== "unknown") return { verdict: v, trace };
        }
-       return { verdict: "unknown", detail: res };
+
+       // 3) クエリ除去
+       const noq = _noQuery(url);
+       if (noq !== url){
+         v = await tryOne("no-query", noq);
+         if (v !== "unknown") return { verdict: v, trace };
+       }
+
+       // 4) パス段階的短縮
+       for (const cand of _peelPaths(url)){
+         v = await tryOne("peel-path", cand);
+         if (v !== "unknown") return { verdict: v, trace };
+       }
+
+       // 5) ドメイン直
+       const dom = _domainOnly(url);
+       if (dom !== url){
+         v = await tryOne("domain-root", dom);
+         if (v !== "unknown") return { verdict: v, trace };
+       }
+
+       return { verdict: "unknown", trace };
      } finally {
        clearTimeout(to);
      }
    }
 
+   // 既存公開名に合わせたラッパも提供（後方互換）
    if (typeof globalThis.ptLookupMinimal !== "function") {
-     globalThis.ptLookupMinimal = ptLookupMinimal;
+     globalThis.ptLookupMinimal = async (u, key, opts) => {
+       const r = await ptLookupDiagnose(u, key, opts);
+       return { verdict: r.verdict, detail: r.trace?.[r.trace.length-1]?.sample || {} };
+     };
    }
+   // 診断版を直接使えるよう公開
+   globalThis.ptLookupDiagnose = ptLookupDiagnose;
+ })();
 
-   // ===== 高レベルヘルパ（sanitize/expand/canonicalize が既存にあれば利用） =====
-   globalThis.checkWithPhishTank = async function(rawUrl, appKey, opts = {}) {
-     const sanitize = globalThis.sanitizeUrl || (x => String(x||"").trim());
-     const expand   = globalThis.expandUrl   || (async x => x);
-     const canonize = globalThis.canonicalize || (u => {
-       try {
-         const url = new URL(u); url.hash = ""; url.hostname = url.hostname.toLowerCase();
-         const p = url.searchParams;
-         ["utm_source","utm_medium","utm_campaign","utm_term","utm_content","gclid","fbclid"].forEach(k => p.delete(k));
-         url.search = p.toString() ? "?" + p.toString() : "";
-         if (url.pathname !== "/" && url.pathname.endsWith("/")) url.pathname = url.pathname.replace(/\/+$/, "/");
-         return url.toString();
-       } catch { return u; }
-     });
+// ==== PhishTank 照会（任意。CORS通らない環境では自動でスキップ）====
+globalThis.phishTankCheck = async function(url, appKey) {
+  if (!appKey) return "unknown";
+  try {
+    const form = new URLSearchParams({ url, format: "json", app_key: appKey });
+    const r = await fetch("https://checkurl.phishtank.com/checkurl/", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form
+    });
+    if (!r.ok) return "unknown";
+    const j = await r.json();
+    const verified = j?.results?.valid || false;
+    return verified ? "listed" : "clean";
+  } catch { return "unknown"; }
+};
 
-     const s1 = sanitize(rawUrl);
-     const finalUrl = await expand(s1);
-     const canon = canonize(finalUrl);
+// ==== ドメイン年齢（VirusTotal ドメイン情報を利用）====
+globalThis.domainAgeDaysViaVT = async function(domain, vtKey) {
+  try {
+    const r = await fetch(`https://www.virustotal.com/api/v3/domains/${encodeURIComponent(domain)}`, {
+      headers: { "x-apikey": vtKey }
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const ts = j.data?.attributes?.creation_date || j.data?.attributes?.whois_date;
+    if (!ts) return null;
+    const days = Math.floor((Date.now()/1000 - ts) / 86400);
+    return days;
+  } catch { return null; }
+};
 
-     let r = await ptLookupMinimal(canon, appKey, opts);
-     if (r.verdict !== "unknown") return r;
-
-    // ヒット率アップ：クエリ除去
-     try {
-       const noQ = canon.split("?")[0];
-       if (noQ && noQ !== canon) {
-         r = await ptLookupMinimal(noQ, appKey, opts);
-         if (r.verdict !== "unknown") return r;
-       }
-     } catch {}
-
-     // パス短縮
-     try {
-       const u = new URL(canon);
-       const parts = u.pathname.split("/").filter(Boolean);
-       while (r.verdict === "unknown" && parts.length > 0) {
-         parts.pop();
-         u.pathname = "/" + parts.join("/") + (parts.length ? "/" : "");
-         u.search = "";
-         r = await ptLookupMinimal(u.toString(), appKey, opts);
-       }
-     } catch {}
-
-     return r;
-   };
-})();
+// ==== 便利関数 ====
+globalThis.getDomain = (u) => { try { return new URL(u).hostname.replace(/^www\./,''); } catch { return ""; } };
