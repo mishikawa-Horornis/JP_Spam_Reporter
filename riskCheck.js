@@ -128,12 +128,12 @@ globalThis.gsbCheckBatch = async function(urls, apiKey) {
      try{ const x = new URL(u); return x.origin + "/"; }catch{ return u; }
    }
 
-  // 強化版ルックアップ：ステップごとの trace を返す
-  async function ptLookupDiagnose(url, appKey, { timeoutMs = 10000 } = {}){
-    const trace = [];
-    const ac = new AbortController();
-    const to = setTimeout(() => ac.abort(), timeoutMs);
-    try{
+   // 強化版ルックアップ：ステップごとの trace を返す
+   async function ptLookupDiagnose(url, appKey, { timeoutMs = 10000 } = {}){
+     const trace = [];
+     const ac = new AbortController();
+     const to = setTimeout(() => ac.abort(), timeoutMs);
+     try{
        const tryOne = async (label, target) => {
          const r = await _ptPost(target, appKey, ac.signal);
          trace.push({ step: label, url: target, verdict: r.verdict, sample: {
@@ -188,25 +188,7 @@ globalThis.gsbCheckBatch = async function(urls, apiKey) {
    }
    // 診断版を直接使えるよう公開
    globalThis.ptLookupDiagnose = ptLookupDiagnose;
- })();
-
-// ==== PhishTank 照会（任意。CORS通らない環境では自動でスキップ）====
-globalThis.phishTankCheck = async function(url, appKey) {
-  if (!appKey) return "unknown";
-  try {
-    const form = new URLSearchParams({ url, format: "json", app_key: appKey });
-    const r = await fetch("https://checkurl.phishtank.com/checkurl/", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: form
-    });
-    if (!r.ok) return "unknown";
-    const j = await r.json();
-    const verified = j?.results?.valid || false;
-    return verified ? "listed" : "clean";
-  } catch { return "unknown"; }
-};
-
+})();
 // ==== ドメイン年齢（VirusTotal ドメイン情報を利用）====
 globalThis.domainAgeDaysViaVT = async function(domain, vtKey) {
   try {
