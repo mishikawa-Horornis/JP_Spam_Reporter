@@ -117,3 +117,154 @@ function buildBodies(msg, verdicts) {
 
   return { usePlain: false, html };
 }
+// --- Diagnosis Trace UI (PT/GSB兼用) ---
+window.showDiagTrace = function showDiagTrace(name, trace = []) {
+  try {
+    // 既存があれば一度消す
+    const old = document.getElementById('diag-trace');
+    if (old) old.remove();
+
+    // コンテナ
+    const wrap = document.createElement('details');
+    wrap.id = 'diag-trace';
+    wrap.open = false;
+
+    // サマリー
+    const summary = document.createElement('summary');
+    summary.textContent = `診断トレース（${name}）`;
+    wrap.appendChild(summary);
+
+    // テーブル
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    table.style.marginTop = '8px';
+
+    const head = document.createElement('thead');
+    head.innerHTML = `
+      <tr>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">step</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">verdict</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">HTTP</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">in_db</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">verified</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">valid</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #888;">url</th>
+      </tr>`;
+    table.appendChild(head);
+
+    const body = document.createElement('tbody');
+    (trace || []).forEach(t => {
+      const tr = document.createElement('tr');
+      const cell = (v) => {
+        const td = document.createElement('td');
+        td.style.padding = '6px';
+        td.style.verticalAlign = 'top';
+        td.textContent = (v ?? '').toString();
+        return td;
+      };
+      tr.appendChild(cell(t.step));
+      tr.appendChild(cell(t.verdict));
+      tr.appendChild(cell(t.http));
+      tr.appendChild(cell(t.sample?.in_database));
+      tr.appendChild(cell(t.sample?.verified));
+      tr.appendChild(cell(t.sample?.valid));
+      tr.appendChild(cell(t.url));
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+
+    wrap.appendChild(table);
+
+    // どこに差すか：結果セクションの直後 / なければ末尾
+    const anchor =
+      document.getElementById('result') ||
+      document.querySelector('.results') ||
+      document.body;
+
+    anchor.appendChild(wrap);
+  } catch (e) {
+    console.error('showDiagTrace error:', e);
+  }
+};
+/* =========================
+ * Diagnosis Trace UI (PT/GSB兼用)
+ * 末尾にそのまま追記してください
+ * ========================= */
+(function(){
+  // 既存があれば上書きしない
+  if (window.showDiagTrace) return;
+
+  // 軽いスタイル（不要なら削除可）
+  const style = `
+    #diag-trace { margin-top: 12px; border: 1px solid var(--border, #3a3a3a); border-radius: 8px; padding: 8px; }
+    #diag-trace summary { font-weight: 600; cursor: pointer; }
+    #diag-trace table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    #diag-trace th, #diag-trace td { text-align: left; padding: 6px; border-bottom: 1px solid #888; font-size: 12.5px; vertical-align: top; }
+  `;
+  try {
+    const s = document.createElement('style');
+    s.textContent = style;
+    document.head.appendChild(s);
+  } catch {}
+
+  // 表示ヘルパ
+  window.showDiagTrace = function showDiagTrace(name, trace = []) {
+    try {
+      // 既存があれば消す
+      const old = document.getElementById('diag-trace');
+      if (old) old.remove();
+
+      // コンテナ
+      const wrap = document.createElement('details');
+      wrap.id = 'diag-trace';
+      wrap.open = false;
+
+      // サマリー
+      const summary = document.createElement('summary');
+      summary.textContent = `診断トレース（${name}）`;
+      wrap.appendChild(summary);
+
+      // テーブル
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th>step</th>
+          <th>verdict</th>
+          <th>HTTP</th>
+          <th>in_db</th>
+          <th>verified</th>
+          <th>valid</th>
+          <th>url</th>
+        </tr>`;
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      (trace || []).forEach(t => {
+        const tr = document.createElement('tr');
+        const td = (v) => { const x = document.createElement('td'); x.textContent = (v ?? '').toString(); return x; };
+        tr.appendChild(td(t.step));
+        tr.appendChild(td(t.verdict));
+        tr.appendChild(td(t.http));
+        tr.appendChild(td(t.sample?.in_database));
+        tr.appendChild(td(t.sample?.verified));
+        tr.appendChild(td(t.sample?.valid));
+        tr.appendChild(td(t.url));
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+
+      // 差し込み先：結果表示あたり（なければ body 末尾）
+      const anchor =
+        document.getElementById('result') ||
+        document.querySelector('.results') ||
+        document.body;
+
+      anchor.appendChild(wrap);
+    } catch (e) {
+      console.error('showDiagTrace error:', e);
+    }
+  };
+})();
