@@ -3,6 +3,14 @@
 // JP Mail Check – background
 // =========================
 
+// ===== Action タイトル用スピナー =====
+const _spin = {
+  timer: null,
+  tabId: null,
+  frames: ["-", "\\", "|", "/"],
+  i: 0,
+  prefix: "Scanning"
+};
 // ---- モード・設定 ----
 const DEFAULT_MODE = "vt";                              // "vt" | "gsb" | "pt"
 const STORAGE_KEY  = "checkMode";
@@ -557,14 +565,6 @@ async function createReportDraftFromResult({ urls, summary, settings, tab }) {
 
   return false;
 }
-// ===== Action タイトル用スピナー =====
-const _spin = {
-  timer: null,
-  tabId: null,
-  frames: ["-", "\\", "|", "/"],
-  i: 0,
-  prefix: "Scanning"
-};
 
 async function _setActionTitle(title, tabId) {
   try { await browser.messageDisplayAction.setTitle({ title, tabId }); } catch {}
