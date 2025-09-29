@@ -26,10 +26,11 @@
     "accountsRead"
   ],
   "host_permissions": [
+    "https://www.virustotal.com/*",
     "https://checkurl.phishtank.com/*",
     "https://safebrowsing.googleapis.com/*"
   ],
-  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'self'; connect-src 'self' https://checkurl.phishtank.com https://safebrowsing.googleapis.com;",
+  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'self'; connect-src 'self' https://www.virustotal.com https://checkurl.phishtank.com https://safebrowsing.googleapis.com;",
   "background": {
     "scripts": [
       "utils/auth.js",
