@@ -71,3 +71,35 @@ globalThis.vtCheckUrl = async function (apiKey, url) {
 
   return { verdict, details };
 };
+// === Extract URLs from mail body ===
+async function extractUrlsFromMessage(full) {
+  const urls = new Set();
+  if (!full?.parts) return [];
+
+  const stack = [...full.parts];
+  while (stack.length) {
+    const p = stack.pop();
+    if (!p) continue;
+    if (p.parts?.length) { stack.push(...p.parts); continue; }
+    if (!p.body) continue;
+
+    const mime = (p.contentType || "").toLowerCase();
+    if (mime.includes("text/html")) {
+      try {
+        const doc = new DOMParser().parseFromString(p.body, "text/html");
+        doc.querySelectorAll("a[href]").forEach(a => urls.add(a.getAttribute("href")));
+        (doc.body.textContent.match(/https?:\/\/[^\s<>"']+/gi) || []).forEach(u => urls.add(u));
+      } catch {}
+    } else {
+      (p.body.match(/https?:\/\/[^\s<>"']+/gi) || []).forEach(u => urls.add(u));
+    }
+  }
+
+  // sanitizeUrl があれば使う
+  const out = [];
+  for (const raw of urls) {
+    const s = (globalThis.sanitizeUrl ? globalThis.sanitizeUrl(raw) : String(raw||"").trim());
+    if (s && /^https?:\/\//i.test(s)) out.push(s);
+  }
+  return out;
+}

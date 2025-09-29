@@ -3,14 +3,6 @@
 // JP Mail Check – background
 // =========================
 
-// ===== Action タイトル用スピナー =====
-const _spin = {
-  timer: null,
-  tabId: null,
-  frames: ["-", "\\", "|", "/"],
-  i: 0,
-  prefix: "Scanning"
-};
 // ---- モード・設定 ----
 const DEFAULT_MODE = "vt";                              // "vt" | "gsb" | "pt"
 const STORAGE_KEY  = "checkMode";
@@ -381,8 +373,9 @@ async function handleCheck(tab) {
       "GSB=", settings.gsbApiKey ? `set(${settings.gsbApiKey.length})` : "unset",
       "PT=", settings.ptAppKey ? `set(${settings.ptAppKey.length})` : "unset"
     );
-    const urls = await extractUrlsFromMail(tab);
-
+    const msg = await browser.messageDisplay.getDisplayedMessage().catch(()=>null);
+    const full = msg && await browser.messages.getFull(msg.id).catch(()=>null);
+    const urls = await extractUrlsFromMessage(full);
     if (!urls.length) {
       await notify("メール内にURLが見つかりませんでした。");
       return; // finally で復帰処理されます
@@ -597,4 +590,37 @@ function normalizeVerdict(v) {
   if (s === "clean" || s === "harmless" || s === "safe") return "harmless";
   if (s === "suspicious" || s === "gray" || s === "grayware") return "suspicious";
   return "unknown";
+}
+// === Safe Spinner & Notify ===
+let _spin = null;  // 先頭宣言必須（再宣言しない）
+
+function startActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.show === "function") _spin.show();
+    else if (_spin.style) _spin.style.display = "";
+  } catch(e) { console.warn("spinner start error", e); }
+}
+function stopActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.hide === "function") _spin.hide();
+    else if (_spin.style) _spin.style.display = "none";
+  } catch(e) { console.warn("spinner stop error", e); }
+}
+
+// 通知を安全化
+function notify(title, message) {
+  if (!browser.notifications) {
+    console.warn("notifications API not available");
+    return;
+  }
+  try {
+    browser.notifications.create({
+      "type": "basic",
+      "iconUrl": browser.runtime.getURL("icons/icon-48.png"),
+      "title": title,
+      "message": message
+    });
+  } catch(e) { console.warn("notify error", e); }
 }

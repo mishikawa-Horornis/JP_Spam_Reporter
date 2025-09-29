@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-// --- spinner bootstrap (safe) ---
-let _spin = null;    // 先頭で「宣言」だけする（ここが重要）
 // もし他ファイルで flagIndicators を公開していない場合は、この定義を使う
 if (!globalThis.flagIndicators) {
   globalThis.flagIndicators = function (items) {
@@ -118,4 +116,37 @@ function buildBodies(msg, verdicts) {
   ].join("\n");
 
   return { usePlain: false, html };
+}
+// === Safe Spinner & Notify ===
+let _spin = null;  // 先頭宣言必須（再宣言しない）
+
+function startActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.show === "function") _spin.show();
+    else if (_spin.style) _spin.style.display = "";
+  } catch(e) { console.warn("spinner start error", e); }
+}
+function stopActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.hide === "function") _spin.hide();
+    else if (_spin.style) _spin.style.display = "none";
+  } catch(e) { console.warn("spinner stop error", e); }
+}
+
+// 通知を安全化
+function notify(title, message) {
+  if (!browser.notifications) {
+    console.warn("notifications API not available");
+    return;
+  }
+  try {
+    browser.notifications.create({
+      "type": "basic",
+      "iconUrl": browser.runtime.getURL("icons/icon-48.png"),
+      "title": title,
+      "message": message
+    });
+  } catch(e) { console.warn("notify error", e); }
 }
