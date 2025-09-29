@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 
+// --- spinner bootstrap (safe) ---
+let _spin = null;    // 先頭で「宣言」だけする（ここが重要）
 // もし他ファイルで flagIndicators を公開していない場合は、この定義を使う
 if (!globalThis.flagIndicators) {
   globalThis.flagIndicators = function (items) {

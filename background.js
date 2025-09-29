@@ -10,6 +10,11 @@ const VALID_MODES  = new Set(["vt", "gsb", "pt"]);
 let currentCheck   = DEFAULT_MODE;
 const scanningTabs = new Set();
 
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('spinner'); // 実際のIDに合わせて
+  if (el) _spin = el;
+});
+
 function notify(message) {
   return browser.notifications.create({
     type: "basic",
@@ -565,29 +570,26 @@ async function _setActionTitle(title, tabId) {
   try { await browser.messageDisplayAction.setTitle({ title, tabId }); } catch {}
 }
 
-async function startActionSpinner(tabId, prefix = "Scanning") {
-  await stopActionSpinner();              // 二重起動ガード
-  _spin.tabId = tabId;
-  _spin.prefix = prefix;
-  _spin.i = 0;
-  _spin.timer = setInterval(() => {
-    const f = _spin.frames[_spin.i++ % _spin.frames.length];
-    _setActionTitle(`${_spin.prefix} ${f}`, _spin.tabId);
-  }, 120);
-  // すぐ1フレーム表示
-  _setActionTitle(`${_spin.prefix} ${_spin.frames[0]}`, _spin.tabId);
+function startActionSpinner() {
+  try {
+    if (!_spin) return;                 // まだ初期化前なら何もしない
+    if (typeof _spin.show === 'function') return _spin.show();
+    if (_spin.style) _spin.style.display = ''; // DOM要素の場合
+  } catch (e) { console.warn('spinner start error', e); }
+}
+function stopActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.hide === 'function') return _spin.hide();
+    if (_spin.style) _spin.style.display = 'none';
+  } catch (e) { console.warn('spinner stop error', e); }
 }
 
 function setActionSpinnerPrefix(prefix) {
   if (_spin.timer) _spin.prefix = prefix;
 }
 
-async function stopActionSpinner(finalTitle = "Check & Report") {
-  if (_spin.timer) clearInterval(_spin.timer);
-  _spin.timer = null;
-  if (_spin.tabId != null) await _setActionTitle(finalTitle, _spin.tabId);
-  _spin.tabId = null;
-}
+
 function normalizeVerdict(v) {
   const s = (typeof v === "string" ? v : v?.verdict || "").toLowerCase();
   if (!s) return "unknown";
