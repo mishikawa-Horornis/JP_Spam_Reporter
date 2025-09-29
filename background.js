@@ -16,13 +16,22 @@ document.addEventListener('DOMContentLoaded', () => {
   if (el) _spin = el;
 });
 
-function notify(message) {
-  return browser.notifications.create({
-    type: "basic",
-    title: "JP Spam Reporter",
-    message,
-  });
+function notify(title, message) {
+  if (!browser?.notifications?.create) return;
+  const t = String(title ?? "通知");
+  const m = String(message ?? "");
+  const icon = browser.runtime?.getURL?.("icons/icon-48.png") || "icons/icon-48.png";
+
+  try {
+    browser.notifications.create({
+      type: "basic",
+      iconUrl: icon,
+      title: t,
+      message: m
+    }).catch(()=>{});
+  } catch(e) { console.warn("notify error", e); }
 }
+
 async function setTitle(title, tabId) {
   try { await browser.messageDisplayAction.setTitle({ title, tabId }); } catch {}
 }

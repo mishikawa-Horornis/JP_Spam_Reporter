@@ -23,7 +23,8 @@
     "webRequestBlocking", 
     "messagesRead", 
     "messagesModify", 
-    "accountsRead"
+    "accountsRead",
+    "contextMenus"
   ],
   "host_permissions": [
     "https://www.virustotal.com/*",

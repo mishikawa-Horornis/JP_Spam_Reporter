@@ -136,19 +136,21 @@ function stopActionSpinner() {
 
 // 通知を安全化
 function notify(title, message) {
-  if (!browser.notifications) {
-    console.warn("notifications API not available");
-    return;
-  }
+  if (!browser?.notifications?.create) return;
+  const t = String(title ?? "通知");
+  const m = String(message ?? "");
+  const icon = browser.runtime?.getURL?.("icons/icon-48.png") || "icons/icon-48.png";
+
   try {
     browser.notifications.create({
-      "type": "basic",
-      "iconUrl": browser.runtime.getURL("icons/icon-48.png"),
-      "title": title,
-      "message": message
-    });
+      type: "basic",
+      iconUrl: icon,
+      title: t,
+      message: m
+    }).catch(()=>{});
   } catch(e) { console.warn("notify error", e); }
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('spinner'); // 実際のID
