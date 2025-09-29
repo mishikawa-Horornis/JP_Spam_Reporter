@@ -15,19 +15,12 @@
     "128": "icons/jp-spam-reporter-128.png"
   },
   "description": "Check URLs in a message and prepare a report email with .eml attachment for Japanese abuse desks.",
-  "permissions": [
-    "messagesRead",
-    "compose",
-    "notifications",
-    "downloads",
-    "storage",
-    "menus",
-    "accountsRead",
-    "https://www.virustotal.com/*",
-    "https://safebrowsing.googleapis.com/*",
+  "permissions": ["storage"],
+    "host_permissions": [
     "https://checkurl.phishtank.com/*",
-    "http://*/*","https://*/*"
+    "https://safebrowsing.googleapis.com/*"
   ],
+  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'self'; connect-src 'self' https://checkurl.phishtank.com https://safebrowsing.googleapis.com;",
   "background": {
     "scripts": [
       "utils/auth.js",
