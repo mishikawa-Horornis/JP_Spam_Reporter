@@ -2,6 +2,7 @@
 // =========================
 // JP Mail Check – background
 // =========================
+let _spin = null;  // ← 必ず最上部。以降は「代入だけ」にする。
 
 // ---- モード・設定 ----
 const DEFAULT_MODE = "vt";                              // "vt" | "gsb" | "pt"
@@ -376,11 +377,11 @@ async function handleCheck(tab) {
     const msg = await browser.messageDisplay.getDisplayedMessage().catch(()=>null);
     const full = msg && await browser.messages.getFull(msg.id).catch(()=>null);
     const urls = await extractUrlsFromMessage(full);
-    if (!urls.length) {
-      await notify("メール内にURLが見つかりませんでした。");
-      return; // finally で復帰処理されます
-    }
-
+    console.debug('[extract] count=', urls.length, urls.slice(0,5));
+    if (urls.length === 0) {
+      notify('JP Mail Check', 'メール内にURLが見つかりませんでした。');
+      return;
+  }
     await notify(`チェック開始（${currentCheck}）：対象 ${urls.length} 件`);
 
     const { vtApiKey, gsbApiKey, ptAppKey } = settings;   // ★ここで取り出す
@@ -460,6 +461,8 @@ browser.menus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== "jp-check-report") return;
   handleCheck(tab).catch(console.error);
 });
+function startActionSpinner(){ try{ browser.action?.setBadgeText?.({text:'…'}); }catch{} }
+function stopActionSpinner(){ try{ browser.action?.setBadgeText?.({text:''}); }catch{} }
 // === report helpers ===
 
 // 下書き本文（テキスト）を作る
@@ -591,9 +594,7 @@ function normalizeVerdict(v) {
   if (s === "suspicious" || s === "gray" || s === "grayware") return "suspicious";
   return "unknown";
 }
-// === Safe Spinner & Notify ===
-let _spin = null;  // 先頭宣言必須（再宣言しない）
-
+// アクションボタンスピナー開始・停止
 function startActionSpinner() {
   try {
     if (!_spin) return;

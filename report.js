@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+let _spin = null;  // ← 必ず最上部。以降は「代入だけ」にする。
 
 // もし他ファイルで flagIndicators を公開していない場合は、この定義を使う
 if (!globalThis.flagIndicators) {
@@ -117,9 +118,7 @@ function buildBodies(msg, verdicts) {
 
   return { usePlain: false, html };
 }
-// === Safe Spinner & Notify ===
-let _spin = null;  // 先頭宣言必須（再宣言しない）
-
+// アクションボタンスピナー開始・停止
 function startActionSpinner() {
   try {
     if (!_spin) return;
@@ -150,3 +149,8 @@ function notify(title, message) {
     });
   } catch(e) { console.warn("notify error", e); }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('spinner'); // 実際のID
+  if (el) _spin = el;   // ← 再宣言せず「代入だけ」
+});
