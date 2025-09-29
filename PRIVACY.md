@@ -1,4 +1,4 @@
-# Privacy Policy (JP Mail Check Extension)
+# Privacy Policy (JP Spam Reporter)
 - 本拡張はメール本文からURLのみを抽出し、ユーザーが設定した外部サービス（例: VirusTotal）に対して解析を行います。
 - メール本文そのものやヘッダ全体を外部に送信しません（.emlの添付はユーザーが報告送信時に明示的に行います）。
 - 解析結果の判定に応じて、報告メールの**下書き**を作成しますが、送信はユーザー操作により行われます。

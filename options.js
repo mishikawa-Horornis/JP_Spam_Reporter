@@ -8,7 +8,7 @@ function $checked(id){ return !!$id(id)?.checked; }
 
 // 既定値（background.js と整合）
 const DEFAULTS = {
-  checkMode: "vt",
+  checkMode: "pt",
   vtApiKey: "", gsbApiKey: "", ptAppKey: "",
   toAntiPhishing: "info@antiphishing.jp",
   toDekyo: "meiwaku@dekyo.or.jp",
@@ -97,3 +97,19 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
   loadOptions().catch(console.error);
 });
+// 通知ユーティリティ
+function notify(title, message) {
+  if (!browser?.notifications?.create) return;
+  const t = String(title ?? '通知');
+  const m = String(message ?? '');
+  const icon = browser.runtime?.getURL?.('icons/icon-48.png') || 'icons/icon-48.png';
+
+  try {
+    return browser.notifications.create({
+      type: 'basic',
+      iconUrl: icon,
+      title: t,
+      message: m
+    }).catch(()=>{});
+  } catch(e) { console.warn('notify error', e); }
+}
