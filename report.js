@@ -124,14 +124,14 @@ function startActionSpinner() {
     if (!_spin) return;
     if (typeof _spin.show === "function") _spin.show();
     else if (_spin.style) _spin.style.display = "";
-  } catch(e) { console.warn("spinner start error", e); }
+  } catch (e) { console.warn("spinner start error", e); }
 }
 function stopActionSpinner() {
   try {
     if (!_spin) return;
     if (typeof _spin.hide === "function") _spin.hide();
     else if (_spin.style) _spin.style.display = "none";
-  } catch(e) { console.warn("spinner stop error", e); }
+  } catch (e) { console.warn("spinner stop error", e); }
 }
 
 // 通知を安全化
