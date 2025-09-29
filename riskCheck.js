@@ -206,3 +206,26 @@ globalThis.domainAgeDaysViaVT = async function(domain, vtKey) {
 
 // ==== 便利関数 ====
 globalThis.getDomain = (u) => { try { return new URL(u).hostname.replace(/^www\./,''); } catch { return ""; } };
+// ===== PhishTank 互換ラッパ（旧API名とのブリッジ） =====
+// 既存コードが phishTankCheck(url, appKey) を呼ぶ前提の互換関数。
+// 戻り値は { verdict: "phish"|"safe"|"unknown", trace? } に統一。
+// もし呼び出し側が「文字列だけ」を期待しているなら、下の return を r.verdict に変えてもOK。
+(function () {
+  if (typeof globalThis.phishTankCheck !== "function") {
+    globalThis.phishTankCheck = async function (url, appKey, opts = {}) {
+      // まず診断付きがあれば使う
+      if (typeof globalThis.ptLookupDiagnose === "function") {
+        const r = await globalThis.ptLookupDiagnose(url, appKey, opts);
+        return { verdict: r.verdict, trace: r.trace };
+      }
+      // 最小実装にフォールバック
+      if (typeof globalThis.ptLookupMinimal === "function") {
+        const r = await globalThis.ptLookupMinimal(url, appKey, opts);
+        // ptLookupMinimal は { verdict, detail } を返す想定
+        return { verdict: r.verdict, trace: r.detail ? [{ step: "minimal", verdict: r.verdict, sample: r.detail, url }] : [] };
+      }
+      // どれも無ければ unknown
+      return { verdict: "unknown", trace: [] };
+    };
+  }
+})();
