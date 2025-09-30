@@ -24,12 +24,7 @@
     "https://checkurl.phishtank.com/*",
     "https://www.virustotal.com/*"
   ],
-  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'self'; connect-src 'self' https://safebrowsing.googleapis.com https://checkurl.phishtank.com https://www.virustotal.com;",
-  "host_permissions": [
-    "https://safebrowsing.googleapis.com/*",
-    "https://checkurl.phishtank.com/*",
-    "https://www.virustotal.com/*"
-  ],
+  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://safebrowsing.googleapis.com https://checkurl.phishtank.com https://www.virustotal.com;",
   "background": {
     "scripts": [
       "utils/auth.js",
@@ -53,5 +48,8 @@
       "48": "icons/jp-spam-reporter-48.png"
     }
   },
-  "options_ui": { "page": "options.html", "open_in_tab": true }
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
   }
+}

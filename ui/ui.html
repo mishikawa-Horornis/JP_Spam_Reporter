@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>JP Spam Reporter</title>
+  <style>
+    #spinner {
+      display: none;
+      margin-left: 6px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <button id="checkAndReport">Check & Report</button>
+  <span id="spinner">⏳</span>
+
+  <script src="../utils/spinner.js"></script>
+  <script src="report.js"></script>
+</body>
+</html>
