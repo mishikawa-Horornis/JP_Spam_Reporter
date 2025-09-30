@@ -17,27 +17,31 @@
   "description": "Check URLs in a message and prepare a report email with .eml attachment for Japanese abuse desks.",
   "permissions": [
     "messagesRead",
-    "compose",
     "notifications",
-    "downloads",
-    "storage",
-    "menus",
-    "accountsRead",
-    "https://www.virustotal.com/*",
+    "contextMenus",
+    "storage"
+  ],
+  "host_permissions": [
     "https://safebrowsing.googleapis.com/*",
     "https://checkurl.phishtank.com/*",
-    "http://*/*","https://*/*"
+    "https://www.virustotal.com/*"
   ],
   "background": {
     "scripts": [
       "utils/auth.js",
       "utils/url.js",
-      "urlSanitize.js",
-      "urlCheck.js",
-      "riskCheck.js",
-      "background.js"
+      "utils/sanitize.js",
+      "utils/notify.js",
+      "utils/spinner.js",
+      "background/providers/gsb.js",
+      "background/providers/pt.js",
+      "background/providers/vt.js",
+      "background/extract.js",
+      "background/api.js",
+      "background/bridge.js"
     ]
   },
+  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'self'; connect-src 'self' https://safebrowsing.googleapis.com https://checkurl.phishtank.com https://www.virustotal.com;",
   "message_display_action": {
     "default_title": "Check & Report",
     "default_icon": {

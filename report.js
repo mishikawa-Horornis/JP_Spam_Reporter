@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// もし他ファイルで flagIndicators を公開していない場合は、この定義を使う
+// --- (1) flagIndicators: そのまま使えます ---
 if (!globalThis.flagIndicators) {
   globalThis.flagIndicators = function (items) {
     const getDomain = (u) => { try { return new URL(u).hostname.replace(/^www\./,''); } catch { return ""; } };
@@ -17,103 +17,49 @@ if (!globalThis.flagIndicators) {
   };
 }
 
-globalThis.createReportDraft = async function (originalMsg, rawEml, results) {
-  const {
-    toAntiPhishing = "info@antiphishing.jp",
-    toDekyo = "report@dekyo.or.jp",
-    attachEml = true,
-  } = await browser.storage.local.get(["toAntiPhishing", "toDekyo", "attachEml"]);
+// --- (2) スピナー紐付け（未初期化でも落ちない util 前提: utils/spinner.js） ---
+document.addEventListener("DOMContentLoaded", () => {
+  const sp = document.getElementById("spinner");
+  if (sp) globalThis._spin = sp;
+});
 
-  const to = [toAntiPhishing, toDekyo].filter(Boolean);
-  const subject = `【報告】疑わしいメール: ${originalMsg.subject || "(件名なし)"}`;
+// --- (3) Check & Report の最小ハンドラ（background/api.js に集約した形） ---
+async function runCheckAndReport() {
+  try {
+    // 未初期化でも NO-OP な util 実装前提（startActionSpinner/stopActionSpinner）
+    startActionSpinner?.();
 
-  // resultsにフラグ付け → 本文生成（HTML優先、なければプレーン）
-  const resultItems = flagIndicators(results);
-  const bodies = buildBodies(originalMsg, resultItems);
+    const msg = await browser.messageDisplay.getDisplayedMessage().catch(()=>null);
+    if (!msg) { notify?.("JP Mail Check", "メールを開いてください"); return; }
 
-  const params = { to, subject };
-  if (bodies.usePlain) {
-    params.isPlainText = true;
-    params.plainTextBody = bodies.text;  // ← プレーン時は plainTextBody 必須
-  } else {
-    params.body = bodies.html;
-  }
-  const tab = await browser.compose.beginNew(params);
+    const urls = await browser.runtime.sendMessage({ type: "extract-urls", messageId: msg.id });
+    if (!urls || urls.length === 0) { notify?.("JP Mail Check", "メール内にURLが見つかりませんでした。"); return; }
 
-  if (attachEml && rawEml) {
-    try {
-      // 1) compose画面の初期化が終わるのを少し待つ（環境により必要）
-      await new Promise(r => setTimeout(r, 150));
+    const mode = (typeof getSetting === "function") ? (await getSetting("mode")) : "gsb"; // "gsb"|"pt"|"vt"
+    const target = urls[0];
+    let res = { verdict: "unknown" };
 
-      // 2) ArrayBuffer/Uint8Array を File にする（ThunderbirdはFileが安定）
-      const bytes = rawEml instanceof ArrayBuffer ? rawEml
-                 : ArrayBuffer.isView(rawEml)      ? rawEml.buffer
-                 : new TextEncoder().encode(String(rawEml)).buffer;
-
-      const filename = (originalMsg.subject || "message") + ".eml";
-      const emlFile = new File([bytes], filename, { type: "message/rfc822" });
-
-      // 3) 添付
-      await browser.compose.addAttachment(tab.id, { file: emlFile });
-    } catch (e) {
-      console.error("attach .eml failed:", e);
-      await browser.notifications.create({
-        type: "basic",
-        title: "JP Spam Reporter",
-        message: "注意：.eml の添付に失敗しました（手動で添付してください）。"
-      });
+    if (mode === "gsb") {
+      res = await browser.runtime.sendMessage({ type: "check-gsb", url: target, apiKey: await getSetting("gsbApiKey") });
+    } else if (mode === "pt") {
+      res = await browser.runtime.sendMessage({ type: "check-pt",  url: target, appKey: await getSetting("ptAppKey") });
+      // 診断トレース（入れていれば可視化）
+      if (typeof showDiagTrace === "function" && res?.trace) showDiagTrace("PhishTank", res.trace);
+    } else if (mode === "vt") {
+      res = await browser.runtime.sendMessage({ type: "check-vt",  url: target, apiKey: await getSetting("vtApiKey") });
     }
-  };
-}
-function buildBodies(msg, verdicts) {
-  const lines = [];
-  lines.push("以下、拡張機能による自動生成の報告下書きです。");
-  lines.push("");
-  lines.push(`受信日時: ${new Date(msg.date).toLocaleString()}`);
-  lines.push(`差出人: ${msg.author}`);
-  lines.push(`宛先: ${(msg.recipients || []).join(", ")}`);
-  lines.push(`件名: ${msg.subject || ""}`);
-  lines.push("");
 
-  // HTMLパートが1つでもあればHTML本文で作成
-  const anyHtml = verdicts.some(v => (v.source || "").startsWith("html"));
-  if (!anyHtml) {
-    lines.push("URL 判定結果:");
-    for (const v of verdicts) {
-      const notes = [
-        v.mismatch ? "表示名とドメイン不一致" : "",
-        v.shortener ? "短縮URL" : "",
-        v.source === "plain" ? "本文(プレーン)検出" : ""
-      ].filter(Boolean).join(", ");
-      lines.push(`- ${v.url} => ${v.verdict}${notes ? ` [${notes}]` : ""}`);
-    }
-    return { usePlain: true, text: lines.join("\n") };
+    notify?.("チェック結果", `${(res.verdict||"unknown").toUpperCase()} - ${target}`);
+  } catch (e) {
+    console.error(e);
+    notify?.("JP Mail Check", "チェックに失敗しました");
+  } finally {
+    stopActionSpinner?.();
   }
-
-  const rows = verdicts.map(v => {
-    const notes = [
-      v.mismatch ? "⚠︎表示名≠リンク先" : "",
-      v.shortener ? "短縮URL" : "",
-      v.source === "html-text" ? "裸URL" : "アンカー"
-    ].filter(Boolean).join(" / ");
-    const safeText = (v.anchorText || "").replace(/[<>&]/g, s => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
-    // URLはそのまま a[href] に入れる（報告用下書きなのでOK）
-    return `<tr>
-      <td style="word-break:break-all;"><a href="${v.url}" rel="noreferrer noopener">${v.url}</a></td>
-      <td>${safeText}</td>
-      <td>${v.domain}</td>
-      <td>${v.verdict}</td>
-      <td>${notes}</td>
-    </tr>`;
-  }).join("");
-
-  const html = [
-    `<p>${lines.map(s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;')).join("<br>")}</p>`,
-    `<table border="1" cellpadding="6" cellspacing="0">
-      <thead><tr><th>URL</th><th>表示文字</th><th>ドメイン</th><th>判定</th><th>メモ</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`
-  ].join("\n");
-
-  return { usePlain: false, html };
 }
+
+// ボタンがある場合だけ結び付ける（無くても落ちない）
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("checkAndReport");
+  if (btn) btn.addEventListener("click", runCheckAndReport);
+});
