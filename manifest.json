@@ -27,14 +27,9 @@
   "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://safebrowsing.googleapis.com https://checkurl.phishtank.com https://www.virustotal.com;",
   "background": {
     "scripts": [
-      "utils/auth.js",
-      "utils/url.js",
-      "utils/sanitize.js",
-      "utils/notify.js",
-      "utils/spinner.js",
-      "background/providers/gsb.js",
-      "background/providers/pt.js",
-      "background/providers/vt.js",
+      "utils/*",
+      "background/*",
+      "background/providers/*",
       "background/extract.js",
       "background/api.js",
       "background/bridge.js"

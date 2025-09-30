@@ -1,25 +1,116 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>JP Spam Reporter</title>
+  <meta name="color-scheme" content="light dark" />
   <style>
+    :root {
+      --fg: #111;
+      --bg: #fff;
+      --muted: #666;
+      --accent: #0b5fff;
+      --border: #d0d0d0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #f3f3f3;
+        --bg: #101114;
+        --muted: #aaa;
+        --accent: #4c8dff;
+        --border: #2a2c31;
+      }
+    }
+    html, body {
+      margin: 0;
+      padding: 16px;
+      color: var(--fg);
+      background: var(--bg);
+      font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Meiryo, "ヒラギノ角ゴ ProN", sans-serif;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #checkAndReport {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    #checkAndReport:disabled {
+      opacity: .65;
+      cursor: not-allowed;
+    }
     #spinner {
       display: none;
-      margin-left: 6px;
+      margin-left: 4px;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: #999;
+      border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #status {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12.5px;
+      min-height: 18px;
+    }
+
+    /* 診断トレース（任意） */
+    #diag-trace {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+    }
+    #diag-trace summary {
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #diag-trace table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6px;
+      font-size: 12.5px;
+    }
+    #diag-trace th, #diag-trace td {
+      text-align: left;
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      word-break: break-all;
     }
   </style>
 </head>
 <body>
-  <button id="checkAndReport">Check & Report</button>
-  <span id="spinner">⏳</span>
+  <h1>JP Spam Reporter</h1>
 
+  <div class="row">
+    <button id="checkAndReport" type="button">Check & Report</button>
+    <span id="spinner" aria-hidden="true"></span>
+  </div>
+
+  <div id="status" aria-live="polite"></div>
+
+  <!-- util -->
+  <script src="../utils/notify.js"></script>
   <script src="../utils/spinner.js"></script>
+  <!-- UI ロジック -->
   <script src="report.js"></script>
 </body>
 </html>
