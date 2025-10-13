@@ -95,32 +95,14 @@
       vertical-align: top;
       word-break: break-all;
     }
-    .jpsr-spinner {
-      display: inline-block;
-      width: 16px; height: 16px;
-      margin-left: 8px;
-      vertical-align: middle;
-      border: 2px solid rgba(255,255,255,0.35);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: jpsr-spin 0.8s linear infinite;
-    }
-    @keyframes jpsr-spin { to { transform: rotate(360deg); } }
-
-    /* 追加: ボタン無効化時の見た目（任意） */
-    .btn[disabled] {
-      opacity: .6;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-</style>
+  </style>
 </head>
 <body>
   <h1>JP Spam Reporter</h1>
 
   <div class="row">
     <button id="checkAndReport" type="button">Check & Report</button>
-    <span id="checkSpinner" class="jpsr-spinner" hidden aria-hidden="true"></span>
+    <span id="spinner" aria-hidden="true"></span>
   </div>
 
   <div id="status" aria-live="polite"></div>
@@ -128,7 +110,6 @@
   <!-- util -->
   <script src="../utils/notify.js"></script>
   <script src="../utils/spinner.js"></script>
-  <script src="../utils/auth.js"></script>
   <!-- UI ロジック -->
   <script src="report.js"></script>
 </body>

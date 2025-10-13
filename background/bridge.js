@@ -14,4 +14,27 @@
     globalThis.vtLookup = (url, apiKey) =>
       browser.runtime.sendMessage({ type:"check-vt", url, apiKey });
   }
+  
+  // message_display_actionのクリックハンドラー
+  if (browser.messageDisplayAction && browser.messageDisplayAction.onClicked) {
+    browser.messageDisplayAction.onClicked.addListener(async (tab) => {
+      try {
+        console.log("[Bridge] Message display action clicked");
+        // ui/report.html を開く
+        const url = browser.runtime.getURL("ui/report.html");
+        await browser.windows.create({
+          url: url,
+          type: "popup",
+          width: 600,
+          height: 400
+        });
+      } catch (e) {
+        console.error("[Bridge] Error opening report UI:", e);
+        // フォールバック: 通知を表示
+        if (globalThis.notify) {
+          globalThis.notify("JP Spam Reporter", "UIを開けませんでした。オプションページから設定を確認してください。");
+        }
+      }
+    });
+  }
 })();

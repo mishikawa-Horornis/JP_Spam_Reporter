@@ -1,23 +1,24 @@
-// SPDX-License-Identifier: MIT
-let isChecking = false;
-
-const btn = document.getElementById("checkAndReportBtn");
-const spinner = document.getElementById("checkSpinner");
-
-function setChecking(state) {
-  isChecking = state;
-  if (btn) {
-    btn.disabled = state;
-    btn.setAttribute("aria-busy", String(state));
-    // 見た目の文言を変えたい場合はここで：
-    // btn.dataset.label = btn.dataset.label || btn.textContent;
-    // btn.textContent = state ? "Checking..." : btn.dataset.label;
-  }
-  if (spinner) {
-    spinner.hidden = !state;
-    spinner.setAttribute("aria-hidden", String(!state));
+// --- Added for TB 143+: safely get displayed message from active tab
+async function getDisplayedMessageActiveTab() {
+  try {
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    const tabId = tabs && tabs[0] ? tabs[0].id : undefined;
+    if (tabId !== undefined) {
+      return await browser.messageDisplay.getDisplayedMessage(tabId);
+    }
+    return await getDisplayedMessageActiveTab(); // fallback
+  } catch (e) {
+    console.error("getDisplayedMessageActiveTab failed", e);
+    try {
+      return await getDisplayedMessageActiveTab(); // fallback
+    } catch (e2) {
+      console.error("fallback getDisplayedMessage failed", e2);
+      return null;
+    }
   }
 }
+
+// SPDX-License-Identifier: MIT
 
 // 1) flagIndicators（必要なら他ファイル不在時のフォールバック）
 if (!globalThis.flagIndicators) {
@@ -81,14 +82,22 @@ if (!globalThis.flagIndicators) {
 
 // 3) DOM 準備：ボタン/スピナー/ステータス紐付け
 document.addEventListener("DOMContentLoaded", () => {
-  const sp = document.getElementById("spinner");
-  const btn = document.getElementById("checkAndReport");
-  const st  = document.getElementById("status");
-  if (sp) globalThis._spin = sp;
-  if (btn) globalThis._scanBtn = btn;
-  if (st)  globalThis._scanStatus = st;
-
-  btn?.addEventListener("click", runCheckAndReport);
+  try {
+    const sp = document.getElementById("spinner");
+    const btn = document.getElementById("checkAndReport");
+    const st = document.getElementById("status");
+    
+    if (sp) globalThis._spin = sp;
+    if (btn) {
+      globalThis._scanBtn = btn;
+      btn.addEventListener("click", runCheckAndReport);
+    } else {
+      console.warn("[UI] checkAndReport button not found");
+    }
+    if (st) globalThis._scanStatus = st;
+  } catch (e) {
+    console.error("[UI] Error initializing DOM:", e);
+  }
 });
 
 // 4) メイン：Scan & Report
@@ -97,7 +106,7 @@ async function runCheckAndReport() {
 
   try {
     // (A) 対象メール
-    const msg = await browser.messageDisplay.getDisplayedMessage().catch(()=>null);
+    const msg = await getDisplayedMessageActiveTab().catch(()=>null);
     if (!msg) { setStatus("メールを開いてください"); notify?.("JP Spam Reporter","メールを開いてください"); return; }
 
     // (B) 抽出
@@ -113,12 +122,12 @@ async function runCheckAndReport() {
 
     let res = { verdict: "unknown" };
     if (mode === "gsb") {
-      res = await browser.runtime.sendMessage({ type:"check-gsb", url: target, apiKey: (globalThis.getSetting?await getSetting("gsbApiKey"):"") });
+      res = await browser.runtime.sendMessage({ type:"check-gsb", url: target, apiKey: await getSetting("gsbApiKey") });
     } else if (mode === "pt") {
-      res = await browser.runtime.sendMessage({ type:"check-pt",  url: target, appKey: (globalThis.getSetting?await getSetting("ptAppKey"):"") });
+      res = await browser.runtime.sendMessage({ type:"check-pt",  url: target, appKey: await getSetting("ptAppKey") });
       if (res?.trace && typeof showDiagTrace === "function") showDiagTrace("PhishTank", res.trace);
     } else if (mode === "vt") {
-      res = await browser.runtime.sendMessage({ type:"check-vt",  url: target, apiKey: (globalThis.getSetting?await getSetting("vtApiKey"):"") });
+      res = await browser.runtime.sendMessage({ type:"check-vt",  url: target, apiKey: await getSetting("vtApiKey") });
     }
 
     const v = (res?.verdict || "unknown").toUpperCase();
@@ -140,45 +149,3 @@ function setStatus(text, pin = false) {
   el.textContent = text || "";
   if (pin) el.dataset.pinned = "1"; else delete el.dataset.pinned;
 }
-// 既存のクリックハンドラを書き換え（あるいはラップ）：
-btn.addEventListener("click", async (ev) => {
-  if (isChecking) return;         // ★ すでに実行中なら無視
-  setChecking(true);
-  try {
-    // (A) 対象メール
-    const msg = await browser.messageDisplay.getDisplayedMessage().catch(()=>null);
-    if (!msg) { setStatus("メールを開いてください"); notify?.("JP Spam Reporter","メールを開いてください"); return; }
-
-    // (B) 抽出
-    setStatus("URL を抽出中…");
-    const urls = await browser.runtime.sendMessage({ type: "extract-urls", messageId: msg.id });
-    if (!urls || urls.length === 0) { setStatus("メール内にURLが見つかりませんでした。", true); notify?.("JP Spam Reporter","URL が見つかりません"); return; }
-
-    // (C) モードとキー
-    const mode = (typeof getSetting === "function") ? (await getSetting("mode")) : "gsb"; // "gsb"|"pt"|"vt"
-    const target = urls[0];
-
-    setStatus(`スキャン実行中（${mode.toUpperCase()}）…`);
-
-    let res = { verdict: "unknown" };
-    if (mode === "gsb") {
-      res = await browser.runtime.sendMessage({ type:"check-gsb", url: target, apiKey: (globalThis.getSetting?await getSetting("gsbApiKey"):"") });
-    } else if (mode === "pt") {
-      res = await browser.runtime.sendMessage({ type:"check-pt",  url: target, appKey: (globalThis.getSetting?await getSetting("ptAppKey"):"") });
-      if (res?.trace && typeof showDiagTrace === "function") showDiagTrace("PhishTank", res.trace);
-    } else if (mode === "vt") {
-      res = await browser.runtime.sendMessage({ type:"check-vt",  url: target, apiKey: (globalThis.getSetting?await getSetting("vtApiKey"):"") });
-    }
-
-    const v = (res?.verdict || "unknown").toUpperCase();
-    setStatus(`結果: ${v} — ${target}`, true);
-    notify?.("チェック結果", `${v} - ${target}`);
-    await doCheckAndRender(); // ←既存のエントリポイントに揃えてください
-  } catch (e) {
-    console.error("Check failed:", e);
-    // 既存のUIエラー表示関数があれば呼ぶ
-    showToast?.("チェックに失敗しました", { type: "error" });
-  } finally {
-    setChecking(false);           // ★ 必ず解除
-  }
-}, false);

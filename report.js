@@ -1,3 +1,23 @@
+// --- Added for TB 143+: safely get displayed message from active tab
+async function getDisplayedMessageActiveTab() {
+  try {
+    const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+    const tabId = tabs && tabs[0] ? tabs[0].id : undefined;
+    if (tabId !== undefined) {
+      return await browser.messageDisplay.getDisplayedMessage(tabId);
+    }
+    return await getDisplayedMessageActiveTab(); // fallback
+  } catch (e) {
+    console.error("getDisplayedMessageActiveTab failed", e);
+    try {
+      return await getDisplayedMessageActiveTab(); // fallback
+    } catch (e2) {
+      console.error("fallback getDisplayedMessage failed", e2);
+      return null;
+    }
+  }
+}
+
 // SPDX-License-Identifier: MIT
 
 // --- (1) flagIndicators: そのまま使えます ---
@@ -29,7 +49,7 @@ async function runCheckAndReport() {
     // 未初期化でも NO-OP な util 実装前提（startActionSpinner/stopActionSpinner）
     startActionSpinner?.();
 
-    const msg = await browser.messageDisplay.getDisplayedMessage().catch(()=>null);
+    const msg = await getDisplayedMessageActiveTab().catch(()=>null);
     if (!msg) { notify?.("JP Mail Check", "メールを開いてください"); return; }
 
     const urls = await browser.runtime.sendMessage({ type: "extract-urls", messageId: msg.id });
@@ -59,7 +79,17 @@ async function runCheckAndReport() {
 }
 
 // ボタンがある場合だけ結び付ける（無くても落ちない）
-document.addEventListener("DOMContentLoaded", () => {
+if (typeof document !== "undefined" && document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("checkAndReport");
+    if (btn) {
+      btn.addEventListener("click", runCheckAndReport);
+    }
+  });
+} else if (typeof document !== "undefined") {
+  // DOMContentLoaded後の場合
   const btn = document.getElementById("checkAndReport");
-  if (btn) btn.addEventListener("click", runCheckAndReport);
-});
+  if (btn) {
+    btn.addEventListener("click", runCheckAndReport);
+  }
+}

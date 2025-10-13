@@ -4,7 +4,7 @@
     if (!globalThis.browser?.notifications?.create) return;
     const t = String(title ?? "通知");
     const m = String(message ?? "");
-    const icon = globalThis.browser.runtime?.getURL?.("icons/icon-48.png") || "icons/icon-48.png";
+    const icon = globalThis.browser.runtime?.getURL?.("icons/jp-spam-reporter-48.png") || "icons/jp-spam-reporter-48.png";
     try {
       globalThis.browser.notifications.create({
         type: "basic",
