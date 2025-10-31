@@ -1,5 +1,4 @@
 // content/toolbar-buttons.js
-// SPDX-License-Identifier: MIT
 // メールビューのツールバーにCheck/Reportボタンを追加（改良版）
 
 console.log('[JPSR] Toolbar buttons script loading...');

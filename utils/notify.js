@@ -1,5 +1,4 @@
 // utils/notify.js
-// SPDX-License-Identifier: MIT
 (function() {
   globalThis.notify = function(title, message) {
     const icon = globalThis.browser?.runtime?.getURL?.("icons/jp-spam-reporter-48.png") || "icons/jp-spam-reporter-48.png";

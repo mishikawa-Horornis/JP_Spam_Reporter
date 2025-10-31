@@ -1,5 +1,4 @@
 // utils/phishing-detect.js
-// SPDX-License-Identifier: MIT
 // フィッシングURLの兆候を検出する（強化版）
 
 (function() {

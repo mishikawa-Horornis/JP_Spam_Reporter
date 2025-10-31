@@ -1,5 +1,4 @@
 // background/api.js
-// SPDX-License-Identifier: MIT
 (function(){
   browser.runtime.onMessage.addListener(async (msg) => {
     try {

@@ -1,5 +1,4 @@
 // ui/report.js
-// SPDX-License-Identifier: MIT
 // ポップアップUI：Check & Report（統合版）
 // === settings helper (report.js 冒頭か、他のutilの直下あたりに追加) ===
 

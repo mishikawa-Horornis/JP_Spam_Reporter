@@ -1,5 +1,4 @@
 // content/message-display.js
-// SPDX-License-Identifier: MIT
 // メールビューにCheck/Reportボタンを注入するコンテンツスクリプト
 
 (function() {

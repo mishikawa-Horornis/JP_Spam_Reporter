@@ -1,5 +1,4 @@
 // background/extract.js
-// SPDX-License-Identifier: MIT
 // メールからURL抽出 & メタデータ抽出（正しいURL処理版）
 
 (function() {
