@@ -6,7 +6,7 @@
   "author": "Masatoshi Ishikawa",
   "applications": {
     "gecko": {
-      "id": "jp-spam-reporter-enhanced@example.com",
+      "id": "jp-spam-reporter@magical-soft.jp",
       "strict_min_version": "102.0"
     }
   },
