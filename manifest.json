@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "JP Spam Reporter Enhanced",
-  "version": "2.4.16.9",
+  "version": "2.4.17.0",
   "description": "Thunderbirdで迷惑メール・フィッシングメールを検出し、日本の報告機関に報告（統合版）。VirusTotal、Google Safe Browsing、PhishTank対応。危険検出時に自動レポート作成",
   "author": "Masatoshi Ishikawa",
   "applications": {
