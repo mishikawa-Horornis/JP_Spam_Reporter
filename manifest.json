@@ -1,64 +1,54 @@
 {
   "manifest_version": 2,
-  "name": "JP Spam Reporter Enhanced",
-  "version": "2.4.17.0",
-  "description": "Thunderbirdで迷惑メール・フィッシングメールを検出し、日本の報告機関に報告（統合版）。VirusTotal、Google Safe Browsing、PhishTank対応。危険検出時に自動レポート作成",
-  "author": "Masatoshi Ishikawa",
+  "name": "JP Spam Reporter",
+  "version": "2.0.0",
   "applications": {
     "gecko": {
-      "id": "jp-spam-reporter-enhanced@example.com",
+      "id": "jp-spam-reporter@magical-soft.jp",
       "strict_min_version": "102.0"
     }
   },
-  "permissions": [
-    "messagesRead",
-    "messagesMove",
-    "messagesDelete",
-    "compose",
-    "storage",
-    "tabs",
-    "notifications",
-    "accountsRead",
-    "https://www.virustotal.com/*",
-    "https://safebrowsing.googleapis.com/*",
-    "https://checkurl.phishtank.com/*"
-  ],
   "icons": {
     "16": "icons/jp-spam-reporter-16.png",
     "32": "icons/jp-spam-reporter-32.png",
     "48": "icons/jp-spam-reporter-48.png",
     "128": "icons/jp-spam-reporter-128.png"
   },
+  "description": "Check URLs in a message and prepare a report email with .eml attachment for Japanese abuse desks.",
+  "permissions": [
+    "storage", 
+    "notifications", 
+    "tabs", 
+    "webRequest", 
+    "webRequestBlocking", 
+    "messagesRead", 
+    "messagesModify", 
+    "accountsRead",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://www.virustotal.com/*",
+    "https://checkurl.phishtank.com/*",
+    "https://safebrowsing.googleapis.com/*"
+  ],
+  "content_security_policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'self'; connect-src 'self' https://www.virustotal.com https://checkurl.phishtank.com https://safebrowsing.googleapis.com;",
   "background": {
     "scripts": [
-      "utils/url.js",
-      "utils/sanitize.js",
       "utils/auth.js",
-      "utils/notify.js",
-      "utils/spinner.js",
-      "utils/phishing-detect.js",
-      "background/providers/gsb.js",
-      "background/providers/pt.js",
-      "background/providers/vt.js",
-      "background/extract.js",
-      "background/api.js",
-      "background/bridge.js",
-      "background/content-handler.js"
+      "utils/url.js",
+      "urlSanitize.js",
+      "urlCheck.js",
+      "riskCheck.js",
+      "background.js"
     ]
   },
-  "options_ui": {
-    "page": "options.html",
-    "open_in_tab": false
-  },
   "message_display_action": {
-    "default_title": "JP Spam Reporter",
-    "default_popup": "ui/report.html",
+    "default_title": "Check & Report",
     "default_icon": {
       "16": "icons/jp-spam-reporter-16.png",
       "32": "icons/jp-spam-reporter-32.png",
-      "48": "icons/jp-spam-reporter-48.png",
-      "128": "icons/jp-spam-reporter-128.png"
+      "48": "icons/jp-spam-reporter-48.png"
     }
   },
-  "content_security_policy": "script-src 'self'; object-src 'self'; connect-src https://www.virustotal.com https://safebrowsing.googleapis.com https://checkurl.phishtank.com;"
+  "options_ui": { "page": "options.html", "open_in_tab": true }
 }

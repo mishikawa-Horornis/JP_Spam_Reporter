@@ -84,3 +84,19 @@ document.getElementById('save').addEventListener('click', async () => {
   
   console.log('[Options] Saved settings:', settings);
 });
+// 通知ユーティリティ
+function notify(title, message) {
+  if (!browser?.notifications?.create) return;
+  const t = String(title ?? '通知');
+  const m = String(message ?? '');
+  const icon = browser.runtime?.getURL?.('icons/icon-48.png') || 'icons/icon-48.png';
+
+  try {
+    return browser.notifications.create({
+      type: 'basic',
+      iconUrl: icon,
+      title: t,
+      message: m
+    }).catch(()=>{});
+  } catch(e) { console.warn('notify error', e); }
+}
