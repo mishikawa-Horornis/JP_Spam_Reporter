@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// utils/auth.js
+// SPDX-License-Identifier: MIT
 (function() {
   globalThis.saveSetting = async function(key, value) {
     const obj = {};
