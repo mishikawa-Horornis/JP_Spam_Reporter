@@ -1,99 +1,102 @@
+// options.js
 // SPDX-License-Identifier: MIT
-// options.js — 単一実装クリーン版
-
-// 取得ユーティリティ
-function $id(id){ const el=document.getElementById(id); if(!el) console.warn("[options] missing id:",id); return el; }
-function $v(id){ return ($id(id)?.value ?? "").trim(); }
-function $checked(id){ return !!$id(id)?.checked; }
-
-// 既定値（background.js と整合）
-const DEFAULTS = {
-  checkMode: "vt",
-  vtApiKey: "", gsbApiKey: "", ptAppKey: "",
-  toAntiPhishing: "info@antiphishing.jp",
-  toDekyo: "meiwaku@dekyo.or.jp",
-  attachEml: true,
-  minSuspiciousToReport: 2,
-  allowlistDomains: [],
-};
-
-// 行末コメント対応の許可リストパーサ
-function parseAllowlist(text){
-  return (text||"")
-    .split(/\r?\n/)
-    .map(l => l.replace(/\s+#.*$/,"").replace(/\s+\/\/.*$/,"").trim())
-    .filter(Boolean);
-}
-
-// 画面へ反映
-async function loadOptions(){
-  const st = await browser.storage.local.get(DEFAULTS);
-
-  // ラジオ（チェック方式）
-  const r = document.querySelector(`input[name="checkMode"][value="${st.checkMode}"]`);
-  if (r) r.checked = true;
-
-  // 入力
-  $id("vtApiKey")?.setAttribute("value", st.vtApiKey || "");
-  $id("gsbApiKey")?.setAttribute("value", st.gsbApiKey || "");
-  $id("ptAppKey")?.setAttribute("value", st.ptAppKey || "");
-  if ($id("vtApiKey"))  $id("vtApiKey").value  = st.vtApiKey || "";
-  if ($id("gsbApiKey")) $id("gsbApiKey").value = st.gsbApiKey || "";
-  if ($id("ptAppKey"))  $id("ptAppKey").value  = st.ptAppKey || "";
-
-  if ($id("toAntiPhishing")) $id("toAntiPhishing").value = st.toAntiPhishing || "";
-  if ($id("toDekyo"))        $id("toDekyo").value        = st.toDekyo || "";
-
-  if ($id("attachEml")) $id("attachEml").checked = !!st.attachEml;
-
-  if ($id("allowlistDomains")) $id("allowlistDomains").value = (st.allowlistDomains||[]).join("\n");
-  if ($id("minSuspiciousToReport")) $id("minSuspiciousToReport").value = st.minSuspiciousToReport ?? 2;
-}
-
-// ステータス表示
-function showStatus(text, type="ok"){
-  const el=$id("saveStatus"); if(!el) return;
-  el.textContent=text; el.style.display="block";
-  el.style.borderColor= type==="error" ? "#e35d5d" : "#58a55c";
-  el.style.background= type==="error" ? "rgba(227,93,93,.10)" : "rgba(88,165,92,.10)";
-  el.style.color     = type==="error" ? "#e35d5d" : "inherit";
-  clearTimeout(showStatus._t);
-  showStatus._t=setTimeout(()=>{ el.style.display="none"; },1800);
-}
-
-// 保存
-async function saveOptions(){
-  try{
-    const data = {
-      checkMode: document.querySelector('input[name="checkMode"]:checked')?.value || "vt",
-      vtApiKey:  $v("vtApiKey"),
-      gsbApiKey: $v("gsbApiKey"),
-      ptAppKey:  $v("ptAppKey"),
-      toAntiPhishing: $v("toAntiPhishing"),
-      toDekyo:        $v("toDekyo"),
-      attachEml:      $checked("attachEml"),
-      allowlistDomains: parseAllowlist($v("allowlistDomains")),
-      minSuspiciousToReport: Math.max(1, parseInt($v("minSuspiciousToReport") || "2", 10)),
-    };
-    await browser.storage.local.set({ ...DEFAULTS, ...data }); // キー欠落も既定で補完
-    showStatus("保存しました ✅","ok");
-  }catch(e){
-    console.error(e);
-    showStatus("保存に失敗しました…","error");
-  }
-}
-
-// 初期化：フォーム送信を止めて保存に一本化
-document.addEventListener("DOMContentLoaded", ()=>{
-  // フォーム submit を抑止して click と二重発火しないように
-  $id("form")?.addEventListener("submit",(e)=>{ e.preventDefault(); saveOptions(); });
-  $id("save")?.addEventListener("click",(e)=>{ e.preventDefault(); saveOptions(); });
-  $id("reset")?.addEventListener("click", async (e)=>{
-    e.preventDefault();
-    await browser.storage.local.set(DEFAULTS);
-    await loadOptions();
-    showStatus("デフォルトに戻しました","ok");
+document.addEventListener('DOMContentLoaded', async () => {
+  // 設定を読み込む
+  const settings = await browser.storage.local.get({
+    checkMode: 'vt',
+    vtApiKey: '',
+    gsbApiKey: '',
+    ptAppKey: '',
+    reportToAntiPhishing: true,
+    reportToDekyo: true,
+    attachEml: true,
+    showToolbarButtons: true,
+    autoCheckDanger: false
   });
-
-  loadOptions().catch(console.error);
+  
+  // checkModeフィールドの存在をチェック（古いバージョンではmodeという名前だった可能性）
+  const modeElement = document.getElementById('checkMode') || document.getElementById('mode');
+  if (modeElement) {
+    modeElement.value = settings.checkMode || 'vt';
+  }
+  
+  document.getElementById('vtApiKey').value = settings.vtApiKey || '';
+  document.getElementById('gsbApiKey').value = settings.gsbApiKey || '';
+  document.getElementById('ptAppKey').value = settings.ptAppKey || '';
+  
+  // チェックボックスの設定（要素が存在する場合のみ）
+  const checkboxes = {
+    'reportToAntiPhishing': settings.reportToAntiPhishing,
+    'reportToDekyo': settings.reportToDekyo,
+    'attachEml': settings.attachEml,
+    'showToolbarButtons': settings.showToolbarButtons,
+    'autoCheckDanger': settings.autoCheckDanger
+  };
+  
+  for (const [id, checked] of Object.entries(checkboxes)) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.checked = checked;
+    }
+  }
+  
+  console.log('[Options] Loaded settings:', settings);
 });
+
+document.getElementById('save').addEventListener('click', async () => {
+  const modeElement = document.getElementById('checkMode') || document.getElementById('mode');
+  const checkMode = modeElement ? modeElement.value : 'vt';
+  
+  const settings = {
+    checkMode: checkMode,
+    vtApiKey: document.getElementById('vtApiKey').value,
+    gsbApiKey: document.getElementById('gsbApiKey').value,
+    ptAppKey: document.getElementById('ptAppKey').value
+  };
+  
+  // チェックボックスの値を取得（要素が存在する場合のみ）
+  const checkboxIds = [
+    'reportToAntiPhishing',
+    'reportToDekyo',
+    'attachEml',
+    'showToolbarButtons',
+    'autoCheckDanger'
+  ];
+  
+  checkboxIds.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      settings[id] = element.checked;
+    }
+  });
+  
+  await browser.storage.local.set(settings);
+  
+  const status = document.getElementById('status');
+  status.style.display = 'block';
+  status.style.background = '#d4edda';
+  status.style.color = '#155724';
+  status.textContent = '✅ 設定を保存しました';
+  
+  setTimeout(() => {
+    status.style.display = 'none';
+  }, 3000);
+  
+  console.log('[Options] Saved settings:', settings);
+});
+// 通知ユーティリティ
+function notify(title, message) {
+  if (!browser?.notifications?.create) return;
+  const t = String(title ?? '通知');
+  const m = String(message ?? '');
+  const icon = browser.runtime?.getURL?.('icons/icon-48.png') || 'icons/icon-48.png';
+
+  try {
+    return browser.notifications.create({
+      type: 'basic',
+      iconUrl: icon,
+      title: t,
+      message: m
+    }).catch(()=>{});
+  } catch(e) { console.warn('notify error', e); }
+}

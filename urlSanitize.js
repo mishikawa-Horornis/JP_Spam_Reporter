@@ -1,43 +1,59 @@
 // SPDX-License-Identifier: MIT
-// urlSanitize.js などに置いて、背景で読み込み（manifest の background.scripts に追加）
-function sanitizeUrl(raw) {
-  if (!raw) return "";
+// urlSanitize.js — URL抽出後の最低限の正規化＆迷彩解除
+// ※ 既存の sanitizeUrl が壊れている環境向けに、同名関数を上書きします。
 
-  let u = String(raw).trim();
-
-  // よくある囲い文字・引用符
-  if ((u.startsWith("<") && u.endsWith(">")) || (u.startsWith('"') && u.endsWith('"')) || (u.startsWith("'") && u.endsWith("'"))) {
-    u = u.slice(1, -1);
+(function(){
+  function _stripQuotes(u){
+    if (!u || typeof u !== "string") return u;
+    u = u.trim();
+    if ((u.startsWith("<") && u.endsWith(">")) ||
+        (u.startsWith('"') && u.endsWith('"')) ||
+        (u.startsWith("'") && u.endsWith("'"))) {
+      return u.slice(1, -1);
+    }
+    return u;
   }
 
-  // 迷彩の除去（必要に応じて調整）
-  u = u
-    .replace(/hxxps?:\/\//i, (m) => m.replace("xx", "tt"))  // hxxp → http
-    .replace(/\[\.\]/g, ".")                                // example[.]com → example.com
-    .replace(/\(dot\)/gi, ".")
-    .replace(/\\+/g, "/");                                  // バックスラッシュ → スラッシュ
-
-  // 周囲/中の空白・改行・ゼロ幅文字
-  u = u.replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/\s+/g, "");
-
-  // スキーム補正（//example.com → https://example.com）
-  if (/^\/\//.test(u)) u = "https:" + u;
-
-  // 非 http(s) は対象外
-  if (!/^https?:\/\//i.test(u)) return "";
-
-  // フラグメント（#...）は解析に無意味なので切る
-  const hashIdx = u.indexOf("#");
-  if (hashIdx > -1) u = u.slice(0, hashIdx);
-
-  // URL オブジェクトで正規化（IDNは自動で punycode 化）
-  try {
-    const urlObj = new URL(u);
-    // 余計な空白や未エンコードを encode
-    urlObj.pathname = encodeURI(decodeURI(urlObj.pathname));
-    urlObj.search   = urlObj.search ? "?" + new URLSearchParams(urlObj.search.slice(1)).toString() : "";
-    return urlObj.toString();
-  } catch {
-    return "";
+  function _deobfuscate(u){
+    return u
+      // hxxp / hxxps → http / https
+      .replace(/hxxps?:\/\//ig, m => m.replace("xx","tt"))
+      // example[.]com → example.com
+      .replace(/\[\.\]/g, ".")
+      // 「全角コロン＋スラ」など
+      .replace(/：\/\//g, "://")
+      // 余計な空白
+      .replace(/\s+/g, " ");
   }
-}
+
+  function _canonicalize(u){
+    try {
+      const url = new URL(u);
+      // 追跡系クエリの削除
+      const del = ["utm_source","utm_medium","utm_campaign","utm_term","utm_content","gclid","fbclid"];
+      del.forEach(k => url.searchParams.delete(k));
+      url.hash = "";
+      url.hostname = url.hostname.toLowerCase().replace(/^www\./, "");
+      // 末尾スラの整理（/ のみはそのまま）
+      if (url.pathname !== "/" && url.pathname.endsWith("/")) {
+        url.pathname = url.pathname.replace(/\/+$/, "/");
+      }
+        return url.toString();
+    } catch {
+      return u;
+    }
+  }
+
+  // 既存があっても安全に上書き
+  globalThis.sanitizeUrl = function sanitizeUrl(raw){
+    if (raw == null) return "";
+    let u = String(raw).trim();
+    u = _stripQuotes(u);
+    u = _deobfuscate(u);
+    // 「example.com」の裸ドメインは URL として扱えないので http を補う（任意）
+    if (!/^https?:\/\//i.test(u) && /^[a-z0-9\-\.]+\.[a-z]{2,}(?:\/|$)/i.test(u)) {
+      u = "http://" + u;
+    }
+    return _canonicalize(u);
+  };
+})();

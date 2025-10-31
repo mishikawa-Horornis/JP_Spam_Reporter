@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+let _spin = null;  // ← 必ず最上部。以降は「代入だけ」にする。
 
 // もし他ファイルで flagIndicators を公開していない場合は、この定義を使う
 if (!globalThis.flagIndicators) {
@@ -117,3 +118,41 @@ function buildBodies(msg, verdicts) {
 
   return { usePlain: false, html };
 }
+// アクションボタンスピナー開始・停止
+function startActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.show === "function") _spin.show();
+    else if (_spin.style) _spin.style.display = "";
+  } catch (e) { console.warn("spinner start error", e); }
+}
+function stopActionSpinner() {
+  try {
+    if (!_spin) return;
+    if (typeof _spin.hide === "function") _spin.hide();
+    else if (_spin.style) _spin.style.display = "none";
+  } catch (e) { console.warn("spinner stop error", e); }
+}
+
+// 通知を安全化
+function notify(title, message) {
+  if (!browser?.notifications?.create) return;
+  const t = String(title ?? "通知");
+  const m = String(message ?? "");
+  const icon = browser.runtime?.getURL?.("icons/icon-48.png") || "icons/icon-48.png";
+
+  try {
+    browser.notifications.create({
+      type: "basic",
+      iconUrl: icon,
+      title: t,
+      message: m
+    }).catch(()=>{});
+  } catch(e) { console.warn("notify error", e); }
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('spinner'); // 実際のID
+  if (el) _spin = el;   // ← 再宣言せず「代入だけ」
+});

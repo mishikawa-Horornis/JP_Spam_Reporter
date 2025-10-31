@@ -2,7 +2,7 @@
 
 ## 1) VirusTotal API キーを取得
 - https://www.virustotal.com/ で無料アカウント作成 → API キーを確認
-
+ 
 ## 2) 開発者モードで読み込み
 Thunderbird → メニュー → ツール → アドオンとテーマ → 歯車 → "アドオンをデバッグ" → "一時的なアドオンを読み込む" → manifest.json を選択
 

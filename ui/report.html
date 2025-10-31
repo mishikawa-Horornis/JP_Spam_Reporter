@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JP Spam Reporter</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body { 
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      min-width: 450px;
+      background-color: #f5f5f5;
+    }
+    
+    h2 {
+      margin: 0 0 16px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    #status { 
+      margin: 16px 0;
+      padding: 12px;
+      background-color: #f8f9fa;
+      border-left: 4px solid #007bff;
+      border-radius: 4px;
+      min-height: 60px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #333;
+    }
+    
+    #status.error {
+      background-color: #fff5f5;
+      border-left-color: #dc3545;
+      color: #dc3545;
+    }
+    
+    #status.warning {
+      background-color: #fffbf0;
+      border-left-color: #ffc107;
+      color: #856404;
+    }
+    
+    #status.success {
+      background-color: #f0f8f5;
+      border-left-color: #28a745;
+      color: #155724;
+    }
+    
+    #spinner { 
+      display: none; 
+      margin-left: 8px;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: white;
+      background-color: #007bff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    button:hover {
+      background-color: #0056b3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+    }
+    
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0,123,255,0.3);
+    }
+    
+    button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    #reportButton {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    #reportButton:hover:not(:disabled) {
+      background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%);
+    }
+    
+    #reportButton:disabled {
+      background: #6c757d;
+    }
+    
+    button img {
+      width: 20px;
+      height: 20px;
+      filter: brightness(0) invert(1);
+    }
+    
+    .button-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    #trace {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      font-family: "Courier New", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .info-section {
+      margin-top: 16px;
+      padding: 12px;
+      background-color: #e7f3ff;
+      border-left: 4px solid #007bff;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    
+    .info-section strong {
+      color: #0056b3;
+    }
+    
+    .report-section {
+      margin-top: 20px;
+      padding: 16px;
+      background-color: white;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+    }
+    
+    .report-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #667eea;
+    }
+    
+    .checkbox-group {
+      margin: 10px 0;
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+    
+    .checkbox-group:hover {
+      background: #f8f9fa;
+    }
+    
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 0;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 10px;
+      cursor: pointer;
+      width: 18px;
+      height: 18px;
+    }
+    
+    .email-badge {
+      color: #667eea;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      background: #e7f3ff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    
+    .btn-report {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      width: 100%;
+      justify-content: center;
+      margin-top: 12px;
+    }
+    
+    .btn-report:hover {
+      background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🛡️ JP Spam Reporter</h2>
+    
+    <div class="info-section">
+      <strong>機能強化:</strong> 
+      フィッシング検出、表示名チェック、混在URLチェックを搭載<br>
+      <strong style="color: #dc3545;">危険なメールを検出時、自動的にレポートメール下書きを作成します</strong>
+    </div>
+    
+    <div id="status">準備完了。メールを開いてボタンをクリックしてください。</div>
+    
+    <div class="button-container">
+      <button id="checkButton">
+        <img src="../icons/jp-spam-reporter-48.png" alt="icon">
+        Check & Report
+      </button>
+      <div id="spinner"></div>
+    </div>
+    
+    <div id="trace"></div>
+  </div>
+
+  <script src="../utils/auth.js"></script>
+  <script src="../utils/spinner.js"></script>
+  <script src="../utils/notify.js"></script>
+  <script src="report.js"></script>
+</body>
+</html>
