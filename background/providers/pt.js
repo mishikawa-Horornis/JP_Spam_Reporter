@@ -1,45 +1,108 @@
 // background/providers/pt.js
-(function(){
-  async function _ptCall(u, appKey, signal) {
-    const form = new URLSearchParams({ url: u, format: "json" });
-    if (appKey) form.set("app_key", appKey);
-    const r = await fetch("https://checkurl.phishtank.com/checkurl/", {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: form.toString(), signal
-    });
-    const j = await r.json().catch(()=> ({}));
-    const res = j?.results || {};
-    let verdict = "unknown";
-    if (res.in_database === true) {
-      verdict = (res.verified === true && res.valid === true) ? "listed"
-              : (res.verified === true && res.valid === false) ? "clean" : "unknown";
-    }
-    return { verdict, sample: res, http: r.status, url: u };
-  }
-  async function checkWithPT(url, appKey, { timeoutMs = 10000 } = {}) {
-    const ac = new AbortController(); const to = setTimeout(()=>ac.abort(), timeoutMs);
-    const trace = [];
+// SPDX-License-Identifier: MIT
+// CORS対策強化版
+(function() {
+  globalThis.checkWithPT = async function(url, appKey) {
     try {
-      const steps = [];
-      const flip = (u)=>{ try{ const x=new URL(u); x.protocol=(x.protocol==="https:")?"http:":"https:"; return x.toString(); }catch{return u;}};
-      const noQ  = (u)=>{ try{ const x=new URL(u); x.search=""; return x.toString(); }catch{return u;}};
-      const peel = (u)=>{ try{ const x=new URL(u); const out=[]; const parts=x.pathname.split("/").filter(Boolean);
-        while(parts.length){ parts.pop(); x.pathname="/"+parts.join("/")+(parts.length?"/":""); x.search=""; out.push(x.toString()); }
-        x.pathname="/"; x.search=""; out.push(x.toString()); return out; }catch{return [];} };
-      const dom  = (u)=>{ try{ const x=new URL(u); x.pathname="/"; x.search=""; return x.toString(); }catch{return u;} };
-
-      steps.push(url);
-      const f = flip(url); if (f!==url) steps.push(f);
-      const nq= noQ(url);  if (nq!==url) steps.push(nq);
-      steps.push(...peel(url));
-      const d = dom(url);  if (d!==url)  steps.push(d);
-
-      for (const u of steps) {
-        const r = await _ptCall(u, appKey, ac.signal); trace.push({ step:"pt", ...r });
-        if (r.verdict !== "unknown") return { verdict: r.verdict, details: r.sample, trace };
+      console.log("[PT] Starting check for URL:", url);
+      
+      const encodedUrl = encodeURIComponent(url);
+      let endpoint = `https://checkurl.phishtank.com/checkurl/`;
+      
+      if (appKey) {
+        endpoint += `?url=${encodedUrl}&format=json&app_key=${appKey}`;
+      } else {
+        endpoint += `?url=${encodedUrl}&format=json`;
       }
-      return { verdict: "unknown", details: trace.at(-1)?.sample, trace };
-    } finally { clearTimeout(to); }
-  }
-  globalThis.checkWithPT = checkWithPT;
+
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 
+          'User-Agent': 'JP-Spam-Reporter-Enhanced/2.3.0',
+          'Accept': 'application/json'
+        },
+        mode: 'cors',
+        credentials: 'omit'
+      }).catch(err => {
+        console.error("[PT] Fetch error:", err);
+        throw new Error(`ネットワークエラー: ${err.message}`);
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text().catch(() => 'Unknown error');
+        console.error("[PT] API error:", resp.status, errorText);
+        
+        // PhishTankの特定のエラーコード処理
+        if (resp.status === 509) {
+          return { 
+            verdict: "unknown", 
+            error: "PhishTankのAPI制限に達しました。しばらく待ってから再度お試しください。",
+            trace: "HTTP 509: Bandwidth Limit Exceeded"
+          };
+        }
+        
+        return { 
+          verdict: "unknown", 
+          error: `APIエラー (HTTP ${resp.status})`,
+          details: errorText
+        };
+      }
+
+      const data = await resp.json();
+      console.log("[PT] Response:", data);
+      
+      let trace = `PhishTank Check:\n`;
+      trace += `URL: ${url}\n`;
+      trace += `In Database: ${data.results?.in_database ? 'Yes' : 'No'}\n`;
+      
+      if (data.results && data.results.in_database) {
+        trace += `Valid Phish: ${data.results.valid ? 'Yes' : 'No'}\n`;
+        trace += `Verified: ${data.results.verified ? 'Yes' : 'No'}\n`;
+        
+        if (data.results.phish_id) {
+          trace += `Phish ID: ${data.results.phish_id}\n`;
+        }
+        
+        if (data.results.valid) {
+          console.log("[PT] Phishing URL detected");
+          return { 
+            verdict: "malicious", 
+            details: data.results,
+            summary: "URL is listed in PhishTank database as a phishing site",
+            trace: trace
+          };
+        }
+      }
+
+      console.log("[PT] URL not in database or not valid phish");
+      trace += `Status: Clean\n`;
+      
+      return { 
+        verdict: "clean",
+        summary: "URL not found in PhishTank phishing database",
+        trace: trace
+      };
+
+    } catch (e) {
+      console.error("[PT] Exception:", e);
+      
+      // CORS エラーの特定
+      if (e.message && (e.message.includes('CORS') || e.message.includes('NetworkError'))) {
+        return { 
+          verdict: "unknown", 
+          error: "ネットワークエラー: PhishTank APIへの接続に失敗しました。",
+          isCorsError: true,
+          trace: `Network Error: ${e.message}`
+        };
+      }
+      
+      return { 
+        verdict: "unknown", 
+        error: `エラー: ${e.message || String(e)}`,
+        trace: `Exception: ${e.stack || e.message}`
+      };
+    }
+  };
+  
+  console.log("[PT] Module loaded with enhanced CORS support");
 })();

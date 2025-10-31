@@ -1,12 +1,23 @@
-// utils/url.js (MV2向け)
-(function(){
-  globalThis.stripQuery = function(u){
-    try { const x=new URL(u); x.search=""; return x.toString(); } catch { return u; }
+// utils/url.js
+// SPDX-License-Identifier: MIT
+(function() {
+  globalThis.normalizeUrl = function(u) {
+    try {
+      const parsed = new URL(u);
+      return parsed.href;
+    } catch {
+      return u;
+    }
   };
-  globalThis.flipProtocol = function(u){
-    try { const x=new URL(u); x.protocol=(x.protocol==="https:")?"http:":"https:"; return x.toString(); } catch { return u; }
+  
+  globalThis.extractDomain = function(u) {
+    try {
+      const parsed = new URL(u);
+      return parsed.hostname.toLowerCase();
+    } catch {
+      return u;
+    }
   };
-  globalThis.getDomain = function(u){
-    try { return new URL(u).hostname; } catch { return ""; }
-  };
+  
+  console.log("[URL] Module loaded");
 })();

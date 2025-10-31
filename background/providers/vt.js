@@ -1,161 +1,225 @@
-// background/providers/vt.js (改善版)
-(function(){
-  // URLからVT用のIDを生成
-  function vtUrlId(rawUrl) {
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(rawUrl);
-      let b64 = btoa(String.fromCharCode(...data));
-      // base64url変換
-      return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    } catch {
-      return "";
-    }
-  }
-
-  async function checkWithVT(url, apiKey, { timeoutMs = 15000 } = {}) {
-    console.log("[VT] checkWithVT called for:", url);
-    
+// background/providers/vt.js
+// SPDX-License-Identifier: MIT
+// CORS対策強化版
+(function() {
+  globalThis.checkWithVT = async function(url, apiKey) {
     if (!apiKey) {
-      console.warn("[VT] No API key provided");
-      return { verdict:"unknown", details:{reason:"no_api_key"} };
+      return { verdict: "unknown", error: "VirusTotal API key not set" };
     }
+
+    // URL検証
+    if (!url || typeof url !== 'string') {
+      console.error("[VT] Invalid URL:", url);
+      return { verdict: "unknown", error: "無効なURLです" };
+    }
+
+    // URLをクリーンアップ
+    const cleanUrl = url.trim().replace(/[\r\n\t]/g, '');
     
-    const headers = { "x-apikey": apiKey, "Accept": "application/json" };
-    const ac = new AbortController(); 
-    const to = setTimeout(()=>ac.abort(), timeoutMs);
-    
+    // URLの形式を検証
     try {
-      // まず既存の分析結果をチェック
-      console.log("[VT] Checking for existing analysis...");
-      const urlId = vtUrlId(url);
-      if (urlId) {
-        try {
-          const existingResult = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
-            headers,
-            signal: ac.signal
-          });
-          
-          if (existingResult.ok) {
-            const existing = await existingResult.json();
-            const stats = existing?.data?.attributes?.last_analysis_stats;
-            if (stats) {
-              console.log("[VT] Found existing analysis:", stats);
-              const malicious = stats.malicious || 0;
-              const suspicious = stats.suspicious || 0;
-              const harmless = stats.harmless || 0;
-              
-              if (malicious > 0 || suspicious > 0) {
-                console.log("[VT] Verdict: listed (from existing)");
-                return { verdict: "listed", details: stats, source: "existing" };
-              } else if (harmless > 0) {
-                console.log("[VT] Verdict: clean (from existing)");
-                return { verdict: "clean", details: stats, source: "existing" };
-              }
-            }
-          } else {
-            console.log(`[VT] No existing analysis found (${existingResult.status})`);
-          }
-        } catch (e) {
-          console.log("[VT] Error checking existing analysis:", e.message);
-          // 既存分析の取得に失敗しても、新規分析に進む
-        }
-      }
+      new URL(cleanUrl);
+    } catch (e) {
+      console.error("[VT] Invalid URL format:", cleanUrl);
+      return { verdict: "unknown", error: "URLの形式が無効です" };
+    }
+
+    try {
+      console.log("[VT] Starting check for URL:", cleanUrl);
       
-      // 新規分析を送信
-      console.log("[VT] Submitting URL for new analysis...");
-      const submitHeaders = { 
-        "x-apikey": apiKey, 
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json"
-      };
-      const form = new URLSearchParams({ url });
-      const submit = await fetch("https://www.virustotal.com/api/v3/urls", { 
-        method: "POST", 
-        headers: submitHeaders, 
-        body: form.toString(), 
-        signal: ac.signal 
+      // URL IDを生成（base64エンコード - 日本語対応）
+      // TextEncoderを使って安全にエンコード
+      const encoder = new TextEncoder();
+      const data = encoder.encode(cleanUrl);
+      let binary = '';
+      for (let i = 0; i < data.length; i++) {
+        binary += String.fromCharCode(data[i]);
+      }
+      const urlId = btoa(binary).replace(/=/g, '');
+      
+      // 既存の分析結果を取得
+      console.log("[VT] Checking existing analysis...");
+      const getResp = await fetch(`https://www.virustotal.com/api/v3/urls/${urlId}`, {
+        method: 'GET',
+        headers: { 
+          "x-apikey": apiKey,
+          "Accept": "application/json"
+        },
+        mode: 'cors',
+        credentials: 'omit'
+      }).catch(err => {
+        console.error("[VT] Fetch error (GET):", err);
+        throw new Error(`ネットワークエラー: ${err.message}`);
       });
-      
-      if (!submit.ok) {
-        console.error("[VT] Submit failed:", submit.status, submit.statusText);
-        try {
-          const errorData = await submit.json();
-          console.error("[VT] Error details:", errorData);
-          return { verdict:"unknown", details:{error: `HTTP ${submit.status}`, data: errorData} };
-        } catch {
-          const errorText = await submit.text().catch(() => "");
-          return { verdict:"unknown", details:{error: `HTTP ${submit.status}`, response: errorText} };
-        }
-      }
-      
-      const sub = await submit.json(); 
-      const analysisId = sub?.data?.id;
-      console.log("[VT] Analysis ID:", analysisId);
-      
-      if (!analysisId) {
-        console.error("[VT] No analysis ID returned:", sub);
-        return { verdict:"unknown", details:sub };
-      }
-      
-      // 結果を待つ（最大12回、各1秒間隔）
-      console.log("[VT] Polling for results...");
-      for (let i = 0; i < 12; i++) {
-        // 最初の試行以外は待機
-        if (i > 0) {
-          await new Promise(rs => setTimeout(rs, 1000));
-        }
+
+      if (getResp.ok) {
+        const data = await getResp.json();
+        const stats = data?.data?.attributes?.last_analysis_stats || {};
+        const malicious = stats.malicious || 0;
+        const suspicious = stats.suspicious || 0;
+        const total = (stats.malicious || 0) + (stats.suspicious || 0) + 
+                      (stats.harmless || 0) + (stats.undetected || 0);
         
-        console.log(`[VT] Polling attempt ${i+1}/12...`);
-        const pollResult = await fetch(`https://www.virustotal.com/api/v3/analyses/${analysisId}`, { 
-          headers,
-          signal: ac.signal 
+        console.log("[VT] Existing analysis found:", stats);
+        
+        if (malicious > 0) {
+          return { 
+            verdict: "malicious", 
+            details: stats,
+            summary: `${malicious}/${total} engines detected this URL as malicious`
+          };
+        }
+        if (suspicious > 0) {
+          return { 
+            verdict: "suspicious", 
+            details: stats,
+            summary: `${suspicious}/${total} engines marked this URL as suspicious`
+          };
+        }
+        return { 
+          verdict: "clean", 
+          details: stats,
+          summary: `${stats.harmless || 0}/${total} engines marked this URL as harmless`
+        };
+      }
+
+      // 404の場合は新規スキャンを実行
+      if (getResp.status === 404) {
+        console.log("[VT] URL not found, submitting for analysis...");
+        
+        // 新規スキャン
+        const formData = new FormData();
+        formData.append('url', cleanUrl);
+        
+        const postResp = await fetch('https://www.virustotal.com/api/v3/urls', {
+          method: 'POST',
+          headers: { 
+            "x-apikey": apiKey
+          },
+          body: formData,
+          mode: 'cors',
+          credentials: 'omit'
+        }).catch(err => {
+          console.error("[VT] Fetch error (POST):", err);
+          throw new Error(`ネットワークエラー: ${err.message}`);
         });
+
+        if (!postResp.ok) {
+          const errorText = await postResp.text().catch(() => 'Unknown error');
+          console.error("[VT] POST failed:", postResp.status, errorText);
+          return { 
+            verdict: "unknown", 
+            error: `APIエラー (HTTP ${postResp.status})`,
+            details: errorText
+          };
+        }
+
+        const postData = await postResp.json();
+        const analysisId = postData?.data?.id;
         
-        if (!pollResult.ok) {
-          console.warn(`[VT] Poll failed: ${pollResult.status}`);
-          if (pollResult.status === 429) {
-            console.log("[VT] Rate limited, waiting 2 seconds...");
-            await new Promise(rs => setTimeout(rs, 2000));
+        if (!analysisId) {
+          return { verdict: "unknown", error: "分析IDを取得できませんでした" };
+        }
+
+        console.log("[VT] Analysis submitted, waiting for results...");
+        
+        // 結果を待つ（段階的に待機時間を延ばす）
+        let attempts = 0;
+        const maxAttempts = 5;
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 3000 + (attempts * 1000)));
+          attempts++;
+          
+          console.log(`[VT] Checking analysis results (attempt ${attempts}/${maxAttempts})...`);
+          
+          const analysisResp = await fetch(`https://www.virustotal.com/api/v3/analyses/${analysisId}`, {
+            method: 'GET',
+            headers: { 
+              "x-apikey": apiKey,
+              "Accept": "application/json"
+            },
+            mode: 'cors',
+            credentials: 'omit'
+          }).catch(err => {
+            console.error("[VT] Fetch error (analysis):", err);
+            throw new Error(`ネットワークエラー: ${err.message}`);
+          });
+
+          if (!analysisResp.ok) {
+            console.error("[VT] Analysis check failed:", analysisResp.status);
+            continue;
           }
-          continue;
+
+          const analysisData = await analysisResp.json();
+          const status = analysisData?.data?.attributes?.status;
+          
+          console.log("[VT] Analysis status:", status);
+          
+          if (status === "completed") {
+            const stats = analysisData?.data?.attributes?.stats || {};
+            const malicious = stats.malicious || 0;
+            const suspicious = stats.suspicious || 0;
+            const total = (stats.malicious || 0) + (stats.suspicious || 0) + 
+                          (stats.harmless || 0) + (stats.undetected || 0);
+            
+            console.log("[VT] Analysis completed:", stats);
+            
+            if (malicious > 0) {
+              return { 
+                verdict: "malicious", 
+                details: stats,
+                summary: `${malicious}/${total} engines detected this URL as malicious`
+              };
+            }
+            if (suspicious > 0) {
+              return { 
+                verdict: "suspicious", 
+                details: stats,
+                summary: `${suspicious}/${total} engines marked this URL as suspicious`
+              };
+            }
+            return { 
+              verdict: "clean", 
+              details: stats,
+              summary: `${stats.harmless || 0}/${total} engines marked this URL as harmless`
+            };
+          }
         }
         
-        const pollData = await pollResult.json();
-        const status = pollData?.data?.attributes?.status;
-        console.log(`[VT] Status: ${status}`);
-        
-        if (status === "completed") {
-          const stats = pollData?.data?.attributes?.stats || {};
-          console.log("[VT] Analysis completed. Stats:", stats);
-          
-          const malicious = stats.malicious || 0;
-          const suspicious = stats.suspicious || 0;
-          const harmless = stats.harmless || 0;
-          
-          if (malicious > 0 || suspicious > 0) {
-            console.log("[VT] Verdict: listed");
-            return { verdict: "listed", details: stats, source: "new_analysis" };
-          } else if (harmless > 0) {
-            console.log("[VT] Verdict: clean");
-            return { verdict: "clean", details: stats, source: "new_analysis" };
-          } else {
-            console.log("[VT] Verdict: unknown (no votes)");
-            return { verdict: "unknown", details: stats, source: "new_analysis" };
-          }
-        }
+        return { 
+          verdict: "unknown", 
+          error: "分析がタイムアウトしました。後でもう一度お試しください。"
+        };
       }
-      
-      console.warn("[VT] Timeout - analysis not completed after 12 attempts");
-      return { verdict:"unknown", details:{reason:"timeout"} };
-      
+
+      // その他のエラー
+      const errorText = await getResp.text().catch(() => 'Unknown error');
+      console.error("[VT] Unexpected error:", getResp.status, errorText);
+      return { 
+        verdict: "unknown", 
+        error: `APIエラー (HTTP ${getResp.status})`,
+        details: errorText
+      };
+
     } catch (e) {
       console.error("[VT] Exception:", e);
-      return { verdict:"unknown", details:{error: String(e), stack: e.stack} };
-    } finally { 
-      clearTimeout(to); 
+      
+      // CORS エラーの特定
+      if (e.message && (e.message.includes('CORS') || e.message.includes('NetworkError'))) {
+        return { 
+          verdict: "unknown", 
+          error: "ネットワークエラー: VirusTotal APIへの接続に失敗しました。APIキーを確認してください。",
+          isCorsError: true
+        };
+      }
+      
+      return { 
+        verdict: "unknown", 
+        error: `エラー: ${e.message || String(e)}`
+      };
     }
-  }
+  };
   
-  globalThis.checkWithVT = checkWithVT;
+  console.log("[VT] Module loaded with enhanced CORS support and URL validation");
 })();
