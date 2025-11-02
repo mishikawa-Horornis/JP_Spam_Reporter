@@ -1,5 +1,4 @@
 // background/providers/vt.js
-// SPDX-License-Identifier: MIT
 // CORS対策強化版
 (function() {
   globalThis.checkWithVT = async function(url, apiKey) {

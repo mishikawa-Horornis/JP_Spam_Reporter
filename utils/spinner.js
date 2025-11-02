@@ -1,5 +1,4 @@
 // utils/spinner.js
-// SPDX-License-Identifier: MIT
 (function() {
   globalThis.startActionSpinner = function() {
     const spinner = document.getElementById("spinner");

@@ -1,5 +1,4 @@
 // utils/sanitize.js
-// SPDX-License-Identifier: MIT
 (function() {
   globalThis.sanitizeUrl = function(url) {
     let clean = url.trim();

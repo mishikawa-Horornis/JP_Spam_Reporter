@@ -1,5 +1,4 @@
 // background/content-handler.js
-// SPDX-License-Identifier: MIT
 // コンテンツスクリプトとの通信を処理（修正版）
 
 // チェック結果を保持

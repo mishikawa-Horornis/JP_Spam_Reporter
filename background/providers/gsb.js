@@ -1,5 +1,4 @@
 // background/providers/gsb.js
-// SPDX-License-Identifier: MIT
 // CORS対策強化版
 (function() {
   globalThis.checkWithGSB = async function(url, apiKey) {

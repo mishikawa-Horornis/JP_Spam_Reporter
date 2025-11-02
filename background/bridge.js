@@ -1,5 +1,4 @@
 // background/bridge.js
-// SPDX-License-Identifier: MIT
 (function() {
   // Content scriptを動的に登録
   if (browser.messageDisplayScripts) {

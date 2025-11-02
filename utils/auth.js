@@ -1,3 +1,4 @@
+// utils/auth.js
 (function() {
   globalThis.saveSetting = async function(key, value) {
     const obj = {};

@@ -1,5 +1,4 @@
 // background/providers/pt.js
-// SPDX-License-Identifier: MIT
 // CORS対策強化版
 (function() {
   globalThis.checkWithPT = async function(url, appKey) {

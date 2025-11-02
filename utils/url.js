@@ -1,5 +1,4 @@
 // utils/url.js
-// SPDX-License-Identifier: MIT
 (function() {
   globalThis.normalizeUrl = function(u) {
     try {
