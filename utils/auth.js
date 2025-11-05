@@ -1,20 +1,16 @@
 // utils/auth.js
-// Authentication-Results をざっくり解析して {spf, dkim, dmarc} を返す簡易版
-(function (global) {
-  function parseAuthResults(full) {
-    // Thunderbird messages.getFull() のヘッダから取り出す
-    const header = getHeader(full, "authentication-results") || "";
-    const pick = (name) =>
-      (header.match(new RegExp(`${name}\\s*=\\s*(pass|fail|none|neutral|temperror|permerror)`, "i"))?.[1] || "none").toLowerCase();
-    return { spf: pick("spf"), dkim: pick("dkim"), dmarc: pick("dmarc") };
-  }
+(function() {
+  globalThis.saveSetting = async function(key, value) {
+    const obj = {};
+    obj[key] = value;
+    await browser.storage.local.set(obj);
+    console.log("[Auth] Saved", key);
+  };
 
-  function getHeader(full, name) {
-    try {
-      return (full.headers?.[name] ?? full.headers?.[name.toLowerCase()] ?? [])[0] || "";
-    } catch { return ""; }
-  }
-
-  // 🔴 グローバルへ公開（ここが重要）
-  global.parseAuthResults = parseAuthResults;
-})(this);
+  globalThis.getSetting = async function(key) {
+    const result = await browser.storage.local.get(key);
+    return result[key] || null;
+  };
+  
+  console.log("[Auth] Module loaded");
+})();

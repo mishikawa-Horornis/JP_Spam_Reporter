@@ -1,65 +1,89 @@
 // options.js
-window.addEventListener("DOMContentLoaded", () => void initOptions());
 
-async function initOptions() {
-  const $ = (id) => document.getElementById(id);
-
-  // このスクリプトが誤って background 上で評価された場合に備えてガード
-  if (!$("#vtApiKey")) return;
-
-  // Promise ベースに統一（Thunderbird で chrome.storage がコールバック式でもOK）
-  const storage = (typeof browser !== "undefined" && browser.storage)
-    ? browser.storage
-    : {
-        local: {
-          get: (keys) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.get(keys, (v) => resolve(v || {})); }
-            catch (e) { reject(e); }
-          }),
-          set: (obj) => new Promise((resolve, reject) => {
-            try { chrome.storage.local.set(obj, () => resolve()); }
-            catch (e) { reject(e); }
-          }),
-        },
-      };
-
-  // 既存値を読み込み（未設定は既定値）
-  let saved = {};
-  try {
-    saved = await storage.local.get([
-      "vtApiKey", "gsbApiKey", "ptAppKey", "toAntiPhishing", "toDekyo", "attachEml"
-    ]);
-  } catch (e) {
-    console.error("[options] storage.get error:", e);
-    $("#status").textContent = "設定の読み込みに失敗しました";
+document.addEventListener('DOMContentLoaded', async () => {
+  // 設定を読み込む
+  const settings = await browser.storage.local.get({
+    checkMode: 'vt',
+    vtApiKey: '',
+    gsbApiKey: '',
+    ptAppKey: '',
+    reportToAntiPhishing: true,
+    reportToDekyo: true,
+    attachEml: true,
+    showToolbarButtons: true,
+    autoCheckDanger: false,
+    domainWhitelist: ''
+  });
+  
+  // checkModeフィールドの存在をチェック（古いバージョンではmodeという名前だった可能性）
+  const modeElement = document.getElementById('checkMode') || document.getElementById('mode');
+  if (modeElement) {
+    modeElement.value = settings.checkMode || 'vt';
   }
+  
+  document.getElementById('vtApiKey').value = settings.vtApiKey || '';
+  document.getElementById('gsbApiKey').value = settings.gsbApiKey || '';
+  document.getElementById('ptAppKey').value = settings.ptAppKey || '';
+  document.getElementById('domainWhitelist').value = settings.domainWhitelist || '';
+  
+  // チェックボックスの設定（要素が存在する場合のみ）
+  const checkboxes = {
+    'reportToAntiPhishing': settings.reportToAntiPhishing,
+    'reportToDekyo': settings.reportToDekyo,
+    'attachEml': settings.attachEml,
+    'showToolbarButtons': settings.showToolbarButtons,
+    'autoCheckDanger': settings.autoCheckDanger
+  };
+  
+  for (const [id, checked] of Object.entries(checkboxes)) {
+    const element = document.getElementById(id);
+    if (element) {
+      element.checked = checked;
+    }
+  }
+  
+  console.log('[Options] Loaded settings:', settings);
+});
 
-  $("#vtApiKey").value       = saved.vtApiKey ?? "";
-  $("#gsbApiKey").value      = saved.gsbApiKey ?? "";
-  $("#ptAppKey").value       = saved.ptAppKey ?? "";                      // ←空でもOK
-  $("#toAntiPhishing").value = saved.toAntiPhishing ?? "info@antiphishing.jp";
-  $("#toDekyo").value        = saved.toDekyo ?? "meiwaku@dekyo.or.jp";
-  $("#attachEml").checked    = (saved.attachEml ?? true);
-
-  // 保存
-  $("#save").addEventListener("click", async () => {
-    const payload = {
-      vtApiKey: $("#vtApiKey").value.trim(),
-      gsbApiKey: $("#gsbApiKey").value.trim(),
-      ptAppKey:  $("#ptAppKey").value.trim(),             // ←空文字も保存
-      toAntiPhishing: $("#toAntiPhishing").value.trim(),
-      toDekyo: $("#toDekyo").value.trim(),
-      attachEml: $("#attachEml").checked,
-    };
-    try {
-      await storage.local.set(payload);
-      $("#status").textContent = "保存しました";
-      console.log("[options] saved:", payload);
-    } catch (e) {
-      console.error("[options] storage.set error:", e);
-      $("#status").textContent = "保存に失敗しました";
-    } finally {
-      setTimeout(() => $("#status").textContent = "", 2000);
+document.getElementById('save').addEventListener('click', async () => {
+  const modeElement = document.getElementById('checkMode') || document.getElementById('mode');
+  const checkMode = modeElement ? modeElement.value : 'vt';
+  
+  const settings = {
+    checkMode: checkMode,
+    vtApiKey: document.getElementById('vtApiKey').value,
+    gsbApiKey: document.getElementById('gsbApiKey').value,
+    ptAppKey: document.getElementById('ptAppKey').value,
+    domainWhitelist: document.getElementById('domainWhitelist').value
+  };
+  
+  // チェックボックスの値を取得（要素が存在する場合のみ）
+  const checkboxIds = [
+    'reportToAntiPhishing',
+    'reportToDekyo',
+    'attachEml',
+    'showToolbarButtons',
+    'autoCheckDanger'
+  ];
+  
+  checkboxIds.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      settings[id] = element.checked;
     }
   });
-}
+  
+  await browser.storage.local.set(settings);
+  
+  const status = document.getElementById('status');
+  status.style.display = 'block';
+  status.style.background = '#d4edda';
+  status.style.color = '#155724';
+  status.textContent = '✅ 設定を保存しました';
+  
+  setTimeout(() => {
+    status.style.display = 'none';
+  }, 3000);
+  
+  console.log('[Options] Saved settings:', settings);
+});
