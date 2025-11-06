@@ -9,6 +9,7 @@ const JPSR_DEFAULTS = {
   gsbApiKey: "",
   ptAppKey: "",
   autoAttachEml: true,  // .eml自動添付の既定
+  domainWhitelist: "",  // ドメインホワイトリスト（改行区切り）
   // …ほかのオプションがあればここへ
 };
 

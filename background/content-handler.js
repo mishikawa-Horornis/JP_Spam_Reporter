@@ -63,7 +63,7 @@ async function performEmailCheck(messageId) {
     }
 
     // フィッシング検出（追加チェック）
-    const phishingCheck = analyzePhishingIndicators(emailMeta, urls);
+    const phishingCheck = await analyzePhishingIndicators(emailMeta, urls);
 
     // 危険判定
     const isDangerous = checkResults.summary.malicious > 0 || 
@@ -401,13 +401,19 @@ function extractDKIMResult(fullMessage) {
   return '';
 }
 
-function analyzePhishingIndicators(emailMeta, urls) {
+async function analyzePhishingIndicators(emailMeta, urls) {
   // 簡易的なフィッシング分析
   const indicators = [];
   let riskLevel = 'low';
   
   // URLが配列でない場合は空配列に
   const urlList = Array.isArray(urls) ? urls : [];
+  
+  // ホワイトリストを設定から読み込む
+  const settings = await browser.storage.local.get({ domainWhitelist: '' });
+  const whitelist = settings.domainWhitelist
+    ? settings.domainWhitelist.split('\n').map(d => d.trim()).filter(d => d.length > 0)
+    : [];
   
   // 表示名とメールアドレスの不一致チェック
   if (emailMeta.displayName && emailMeta.fromDomain) {
@@ -452,7 +458,7 @@ function analyzePhishingIndicators(emailMeta, urls) {
     for (const url of urlList.slice(0, 5)) { // 最初の5つのURLだけチェック
       if (url && typeof url === 'string') {
         try {
-          const result = globalThis.detectPhishing(url, emailMeta);
+          const result = globalThis.detectPhishing(url, emailMeta, whitelist);
           if (result.suspicious) {
             indicators.push(...result.reasons);
             if (result.confidence === 'high') {

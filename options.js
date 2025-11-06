@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     reportToDekyo: true,
     attachEml: true,
     showToolbarButtons: true,
-    autoCheckDanger: false
+    autoCheckDanger: false,
+    domainWhitelist: ''
   });
   
   // checkModeフィールドの存在をチェック（古いバージョンではmodeという名前だった可能性）
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('vtApiKey').value = settings.vtApiKey || '';
   document.getElementById('gsbApiKey').value = settings.gsbApiKey || '';
   document.getElementById('ptAppKey').value = settings.ptAppKey || '';
+  document.getElementById('domainWhitelist').value = settings.domainWhitelist || '';
   
   // チェックボックスの設定（要素が存在する場合のみ）
   const checkboxes = {
@@ -51,7 +53,8 @@ document.getElementById('save').addEventListener('click', async () => {
     checkMode: checkMode,
     vtApiKey: document.getElementById('vtApiKey').value,
     gsbApiKey: document.getElementById('gsbApiKey').value,
-    ptAppKey: document.getElementById('ptAppKey').value
+    ptAppKey: document.getElementById('ptAppKey').value,
+    domainWhitelist: document.getElementById('domainWhitelist').value
   };
   
   // チェックボックスの値を取得（要素が存在する場合のみ）

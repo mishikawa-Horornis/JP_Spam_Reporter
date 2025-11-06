@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "JP Spam Reporter Enhanced",
-  "version": "2.4.17.0",
-  "description": "Thunderbirdで迷惑メール・フィッシングメールを検出し、日本の報告機関に報告（統合版）。VirusTotal、Google Safe Browsing、PhishTank対応。危険検出時に自動レポート作成",
+  "version": "2.4.18.2",
+  "description": "Thunderbirdで迷惑メール・フィッシングメールを検出し、日本の報告機関に報告（統合版）。VirusTotal、Google Safe Browsing、PhishTank対応。危険検出時に自動レポート作成。信頼できるドメインデータベース＋ホワイトリスト機能付き",
   "author": "Masatoshi Ishikawa",
   "applications": {
     "gecko": {
@@ -12,8 +12,6 @@
   },
   "permissions": [
     "messagesRead",
-    "messagesMove",
-    "messagesDelete",
     "compose",
     "storage",
     "tabs",
@@ -37,6 +35,7 @@
       "utils/notify.js",
       "utils/spinner.js",
       "utils/phishing-detect.js",
+      "trustedDomains.js",
       "background/providers/gsb.js",
       "background/providers/pt.js",
       "background/providers/vt.js",

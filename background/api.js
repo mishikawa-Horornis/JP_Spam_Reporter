@@ -114,9 +114,14 @@
           
         case "detect-phishing":
           if (typeof globalThis.detectPhishing === "function") {
-            return globalThis.detectPhishing(msg.url, msg.emailMeta);
+            // ホワイトリストを設定から読み込む
+            const settings = await browser.storage.local.get({ domainWhitelist: '' });
+            const whitelist = settings.domainWhitelist
+              ? settings.domainWhitelist.split('\n').map(d => d.trim()).filter(d => d.length > 0)
+              : [];
+            return globalThis.detectPhishing(msg.url, msg.emailMeta, whitelist);
           }
-          return { suspicious: false, reasons: [], actualDomain: msg.url };
+          return { suspicious: false, reasons: [], actualDomain: msg.url, trusted: false };
           
         case "check-mixed-domains":
           if (typeof globalThis.checkMixedDomains === "function") {

@@ -48,12 +48,14 @@
    * URLにフィッシングの兆候があるかチェック
    * @param {string} url - チェックするURL
    * @param {Object} emailMeta - メールのメタデータ（オプション）
-   * @returns {Object} { suspicious: boolean, reasons: string[], actualDomain: string, confidence: string }
+   * @param {string[]} customWhitelist - ユーザー定義のホワイトリスト（オプション）
+   * @returns {Object} { suspicious: boolean, reasons: string[], actualDomain: string, confidence: string, trusted: boolean }
    */
-  globalThis.detectPhishing = function detectPhishing(url, emailMeta) {
+  globalThis.detectPhishing = function detectPhishing(url, emailMeta, customWhitelist = []) {
     const reasons = [];
     let suspicious = false;
     let actualDomain = '';
+    let trustedDomain = false;
 
     // URLの検証
     if (!url || typeof url !== 'string') {
@@ -62,7 +64,8 @@
         suspicious: false,
         reasons: ['URLが無効です'],
         actualDomain: '',
-        confidence: 'low'
+        confidence: 'low',
+        trusted: false
       };
     }
 
@@ -102,6 +105,32 @@
       
       if (!actualDomain) {
         actualDomain = hostname;
+      }
+
+      // 3.5. 信頼できるドメインかチェック（新機能）
+      // trustedDomains.js が読み込まれている場合のみチェック
+      if (typeof globalThis.isDomainTrusted === 'function') {
+        const trustCheck = globalThis.isDomainTrusted(actualDomain, customWhitelist);
+        if (trustCheck.trusted) {
+          trustedDomain = true;
+          // 信頼できるドメインの場合、フィッシングの疑いを大幅に軽減
+          console.log(`[PhishingDetect] Trusted domain detected: ${actualDomain}`, trustCheck);
+          
+          // 信頼できるドメインでも、明らかな異常がある場合は警告を出す
+          if (reasons.length > 0) {
+            console.warn(`[PhishingDetect] Trusted domain but has suspicious indicators: ${actualDomain}`, reasons);
+          } else {
+            // 信頼できるドメインで異常がない場合は、チェックをスキップ
+            return {
+              suspicious: false,
+              reasons: [`信頼できるドメイン: ${trustCheck.info?.name || actualDomain}`],
+              actualDomain,
+              confidence: 'low',
+              trusted: true,
+              trustInfo: trustCheck.info
+            };
+          }
+        }
       }
 
       // 4. 疑わしいTLDのチェック
@@ -169,7 +198,8 @@
       suspicious,
       reasons,
       actualDomain: actualDomain || url,
-      confidence: suspicious ? (reasons.length >= 2 ? 'high' : 'medium') : 'low'
+      confidence: suspicious ? (reasons.length >= 2 ? 'high' : 'medium') : 'low',
+      trusted: trustedDomain
     };
   };
 

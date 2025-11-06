@@ -113,6 +113,11 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
   let reportButton = null;
   let statusIndicator = null;
 
+  // ボタンのテキストを更新するヘルパー関数
+  function updateButtonText(button, text) {
+    button.textContent = text;
+  }
+
   // ボタンコンテナを作成
   function createButtons() {
     console.log('[JPSR] Creating toolbar buttons...');
@@ -125,13 +130,13 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
     // Checkボタン
     checkButton = document.createElement('button');
     checkButton.className = 'jpsr-toolbar-button jpsr-check-button';
-    checkButton.innerHTML = '<span>●</span> Check';
+    checkButton.textContent = '● Check';
     checkButton.title = 'メールの安全性をチェック';
     
     // Reportボタン
     reportButton = document.createElement('button');
     reportButton.className = 'jpsr-toolbar-button jpsr-report-button';
-    reportButton.innerHTML = '📧 Report';
+    reportButton.textContent = '📧 Report';
     reportButton.title = '迷惑メールを報告';
     reportButton.disabled = true;
     
@@ -221,7 +226,7 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
     
     checkButton.disabled = true;
     checkButton.classList.add('jpsr-checking');
-    checkButton.innerHTML = '⏳ Checking...';
+    updateButtonText(checkButton, '⏳ Checking...');
     showStatus('メールをチェック中...', 'info');
 
     try {
@@ -240,24 +245,24 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
       if (currentCheckResult.isDangerous) {
         showStatus('⚠️ 危険なメールです！報告を推奨します', 'danger');
         reportButton.disabled = false;
-        checkButton.innerHTML = '⚠️ 危険';
+        updateButtonText(checkButton, '⚠️ 危険');
         checkButton.style.color = '#dc3545';
       } else if (currentCheckResult.isSuspicious) {
         showStatus('⚠️ 疑わしいメールです', 'warning');
         reportButton.disabled = false;
-        checkButton.innerHTML = '⚠️ 疑わしい';
+        updateButtonText(checkButton, '⚠️ 疑わしい');
         checkButton.style.color = '#ffc107';
       } else {
         showStatus('✅ 安全なメールです', 'success');
         reportButton.disabled = true;
-        checkButton.innerHTML = '✅ 安全';
+        updateButtonText(checkButton, '✅ 安全');
         checkButton.style.color = '#28a745';
       }
 
     } catch (error) {
       console.error('[JPSR] Check failed:', error);
       showStatus(`エラー: ${error.message}`, 'danger');
-      checkButton.innerHTML = '❌ エラー';
+      updateButtonText(checkButton, '❌ エラー');
     } finally {
       checkButton.disabled = false;
       checkButton.classList.remove('jpsr-checking');
@@ -274,7 +279,7 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
     }
 
     reportButton.disabled = true;
-    reportButton.innerHTML = '⏳ 作成中...';
+    updateButtonText(reportButton, '⏳ 作成中...');
     showStatus('報告メールを作成中...', 'info');
 
     try {
@@ -288,13 +293,13 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
       }
 
       showStatus('✅ 報告メールを作成しました', 'success');
-      reportButton.innerHTML = '✅ 報告済み';
+      updateButtonText(reportButton, '✅ 報告済み');
       
     } catch (error) {
       console.error('[JPSR] Report creation failed:', error);
       showStatus(`エラー: ${error.message}`, 'danger');
       reportButton.disabled = false;
-      reportButton.innerHTML = '📧 Report';
+      updateButtonText(reportButton, '📧 Report');
     }
   }
 
@@ -306,12 +311,12 @@ if (typeof window.jpsrButtonsInitialized === 'undefined') {
       currentCheckResult = null;
       if (checkButton) {
         checkButton.disabled = false;
-        checkButton.innerHTML = '<span>●</span> Check';
+        updateButtonText(checkButton, '● Check');
         checkButton.style.color = '';
       }
       if (reportButton) {
         reportButton.disabled = true;
-        reportButton.innerHTML = '📧 Report';
+        updateButtonText(reportButton, '📧 Report');
       }
       if (statusIndicator) {
         statusIndicator.className = 'jpsr-status-indicator';
