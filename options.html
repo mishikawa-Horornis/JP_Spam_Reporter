@@ -1,148 +1,33 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>JP Spam Reporter - 設定</title>
-  <style>
-    body {
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-      margin: 20px;
-      padding: 0;
-      background-color: #f5f5f5;
-    }
-    
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      background-color: white;
-      padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    
-    h1 {
-      margin-top: 0;
-      color: #333;
-      font-size: 24px;
-    }
-    
-    .section {
-      margin: 25px 0;
-      padding: 20px;
-      background-color: #f8f9fa;
-      border-radius: 6px;
-    }
-    
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 600;
-      color: #555;
-    }
-    
-    select, input[type="text"] {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-      box-sizing: border-box;
-    }
-    
-    input[type="text"] {
-      font-family: "Courier New", monospace;
-    }
-    
-    button {
-      padding: 12px 24px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    button:hover {
-      background-color: #0056b3;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(0,123,255,0.3);
-    }
-    
-    button:active {
-      transform: translateY(0);
-    }
-    
-    .info {
-      margin-top: 10px;
-      padding: 12px;
-      background-color: #e7f3ff;
-      border-left: 4px solid #007bff;
-      border-radius: 4px;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-    
-    .info strong {
-      color: #0056b3;
-    }
-    
-    .info a {
-      color: #007bff;
-      text-decoration: none;
-    }
-    
-    .info a:hover {
-      text-decoration: underline;
-    }
-    
-    #status {
-      margin-top: 15px;
-      padding: 12px;
-      background-color: #d4edda;
-      border-left: 4px solid #28a745;
-      border-radius: 4px;
-      color: #155724;
-      display: none;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>🛡️ JP Spam Reporter - 設定</h1>
-    
-    <div class="section">
-      <label for="mode">チェックモード:</label>
-      <select id="mode">
-        <option value="vt">VirusTotal</option>
-        <option value="gsb">Google Safe Browsing</option>
-        <option value="pt">PhishTank</option>
-      </select>
-      
-      <div class="info">
-        <strong>VirusTotal:</strong> 最も包括的、無料版は1分に4リクエストまで<br>
-        <strong>GSB:</strong> Googleのサービス、高速<br>
-        <strong>PhishTank:</strong> フィッシング専門、無料
-      </div>
-    </div>
-    
-    <div class="section">
-      <label for="vtApiKey">VirusTotal API Key:</label>
-      <input type="text" id="vtApiKey" placeholder="APIキーを入力してください">
-      
-      <div class="info">
-        取得方法: <a href="https://www.virustotal.com/gui/my-apikey" target="_blank">VirusTotal</a> でアカウント作成後、APIキーをコピー
-      </div>
-    </div>
-    
-    <div class="section">
-      <label for="gsbApiKey">Google Safe Browsing API Key:</label>
-      <input type="text" id="gsbApiKey" placeholder="APIキーを入力してください">
-      
-      <div class="info">
-        取得方法: <a href="https://developers.google.com/safe-browsing/v4/get-started" target="_blank">Google Cloud Console</a> でプロジェクト作成後、Safe Browsing APIを有効化
+  <head>
+    <meta charset="utf-8" />
+    <title>JP Mail Check Extension – 設定</title>
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:720px;margin:24px auto;line-height:1.6}
+      label{display:block;margin:12px 0 4px}
+      input[type=text]{width:100%;padding:8px}
+      .row{display:flex;gap:12px}
+      .row > div{flex:1}
+      .actions{margin-top:16px}
+    </style>
+  </head>
+  <body>
+    <h1>JP Mail Check Extension – 設定</h1>
+
+    <label>VirusTotal API Key</label>
+    <input id="vtApiKey" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+
+    <label>Google Safe Browsing API Key</label>
+    <input id="gsbApiKey" type="text" />
+
+    <label>PhishTank App Key（任意・未設定可）</label>
+    <input id="ptAppKey" type="text" placeholder="" />
+ 
+    <div class="row">
+      <div>
+        <label>報告先（フィッシング対策協議会）</label>
+        <input id="toAntiPhishing" type="text" value="info@antiphishing.jp" />
       </div>
     </div>
     
@@ -154,89 +39,12 @@
         取得方法: <a href="https://www.phishtank.com/api_info.php" target="_blank">PhishTank</a> でアカウント作成後、App Keyを取得（なくても動作します）
       </div>
     </div>
-    
-    <div class="section">
-      <h2 style="margin-top: 0; font-size: 18px; color: #667eea;">📮 日本の報告機関</h2>
-      
-      <div style="margin: 16px 0;">
-        <label style="display: flex; align-items: center; margin: 8px 0;">
-          <input type="checkbox" id="reportToAntiPhishing" checked style="margin-right: 10px; width: auto;">
-          <span>フィッシング対策協議会 (info@antiphishing.jp) に報告</span>
-        </label>
-        
-        <label style="display: flex; align-items: center; margin: 8px 0;">
-          <input type="checkbox" id="reportToDekyo" checked style="margin-right: 10px; width: auto;">
-          <span>迷惑メール相談センター (meiwaku@dekyo.or.jp) に報告</span>
-        </label>
-        
-        <label style="display: flex; align-items: center; margin: 8px 0;">
-          <input type="checkbox" id="attachEml" checked style="margin-right: 10px; width: auto;">
-          <span>元メール（.emlファイル）を自動添付（推奨）</span>
-        </label>
-      </div>
-    </div>
 
-    <div class="section">
-      <h2 style="margin-top: 0; font-size: 18px; color: #667eea;">🎛️ ボタン表示設定</h2>
-      
-      <div style="margin: 16px 0;">
-        <label style="display: flex; align-items: center; margin: 8px 0;">
-          <input type="checkbox" id="showToolbarButtons" checked style="margin-right: 10px; width: auto;">
-          <span>メールビューにCheck/Reportボタンを表示</span>
-        </label>
-        
-        <label style="display: flex; align-items: center; margin: 8px 0;">
-          <input type="checkbox" id="autoCheckDanger" style="margin-right: 10px; width: auto;">
-          <span>危険なメールを自動でチェック（実験的機能）</span>
-        </label>
-        
-        <div class="info">
-          メール本文側に直接ボタンを表示します。従来のポップアップも引き続き利用可能です。
-        </div>
-      </div>
-    </div>
+    <label><input id="attachEml" type="checkbox" checked /> 元メール(.eml)を添付する（推奨）</label>
 
-    <div class="section">
-      <h2 style="margin-top: 0; font-size: 18px; color: #10b981;">✅ ホワイトリスト設定</h2>
-      
-      <label for="domainWhitelist">信頼できるドメインのホワイトリスト:</label>
-      <textarea 
-        id="domainWhitelist" 
-        rows="8" 
-        placeholder="信頼できるドメインを1行に1つずつ入力してください&#10;例:&#10;example.com&#10;mycompany.co.jp&#10;trusted-site.jp"
-        style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 14px; box-sizing: border-box; resize: vertical;"
-      ></textarea>
-      
-      <div class="info">
-        <strong>💡 ホワイトリストについて:</strong><br>
-        • ここに登録したドメインからのメールは、フィッシングチェックで「信頼できる」と判定されます<br>
-        • 社内メールや取引先など、信頼できるドメインを追加してください<br>
-        • 1行に1つのドメインを入力してください（例: company.co.jp）<br>
-        • サブドメインも自動的に信頼されます（例: mail.company.co.jp）<br>
-        • このプラグインには、日本の主要企業・官公庁のドメインが既に登録されています
-      </div>
-      
-      <div class="info" style="margin-top: 10px; background-color: #fff3cd; border-left-color: #ffc107;">
-        <strong>⚠️ 注意:</strong> ホワイトリストに追加するドメインは、確実に信頼できるものだけにしてください。誤って悪意のあるドメインを追加すると、フィッシングメールが検出されなくなります。
-      </div>
-    </div>
-      <div class="info">
-        <strong>フィッシング対策協議会</strong><br>
-        メール: <code>info@antiphishing.jp</code><br>
-        対象: フィッシング詐欺メール（金融機関、ECサイトなどを装ったメール）<br>
-        <a href="https://www.antiphishing.jp/" target="_blank">公式サイト</a>
-      </div>
-      
-      <div class="info" style="margin-top: 10px;">
-        <strong>迷惑メール相談センター</strong><br>
-        メール: <code>meiwaku@dekyo.or.jp</code><br>
-        対象: すべての迷惑メール（広告、スパム、詐欺メール全般）<br>
-        <a href="https://www.dekyo.or.jp/soudan/" target="_blank">公式サイト</a>
-      </div>
-      
-      <div class="info" style="margin-top: 10px; background-color: #fff3cd; border-left-color: #ffc107;">
-        <strong>💡 ヒント:</strong> 報告時は「元メール（.eml）を添付する」を選択することで、より詳細な調査が可能になります。
-      </div>
+    <div class="actions">
+      <button id="save">保存</button>
+      <span id="status" style="margin-left:8px"></span>
     </div>
     
     <button id="save">保存</button>
